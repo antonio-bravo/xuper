@@ -74,6 +74,7 @@ fun XuperApp() {
     var channels by remember { mutableStateOf(listOf<Channel>()) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Todos") }
+    var selectedListName by remember { mutableStateOf("Todas las listas") }
     var isFullScreen by remember { mutableStateOf(false) }
     
     var favoriteUrls by remember { 
@@ -115,7 +116,7 @@ fun XuperApp() {
             val allChannels = mutableListOf<Channel>()
             try {
                 for (source in m3uLists) {
-                    val fetched = M3UParser.fetchAndParse(source.url)
+                    val fetched = M3UParser.fetchAndParse(source.url, source.name)
                     allChannels.addAll(fetched)
                 }
                 channels = allChannels
@@ -197,6 +198,9 @@ fun XuperApp() {
                         onSearchChange = { searchQuery = it },
                         selectedCategory = selectedCategory,
                         onCategoryChange = { selectedCategory = it },
+                        selectedListName = selectedListName,
+                        onListNameChange = { selectedListName = it },
+                        m3uLists = m3uLists,
                         favoriteUrls = favoriteUrls,
                         onToggleFavorite = toggleFavorite,
                         onChannelSelected = onPlayChannel,
@@ -227,6 +231,9 @@ fun MainTvScreen(
     onSearchChange: (String) -> Unit,
     selectedCategory: String,
     onCategoryChange: (String) -> Unit,
+    selectedListName: String,
+    onListNameChange: (String) -> Unit,
+    m3uLists: List<M3UList>,
     favoriteUrls: Set<String>,
     onToggleFavorite: (String) -> Unit,
     onChannelSelected: (Channel?) -> Unit,
@@ -270,9 +277,29 @@ fun MainTvScreen(
             singleLine = true
         )
 
+        // Filtro de Listas
+        val listSources = remember(m3uLists) {
+            listOf("Todas las listas") + m3uLists.map { it.name }
+        }
+        LazyRow(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            items(listSources) { name ->
+                FilterChip(
+                    selected = selectedListName == name,
+                    onClick = { onListNameChange(name) },
+                    label = { Text(name) },
+                    modifier = Modifier.padding(end = 4.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            }
+        }
+
         // Filtro de Categorías
-        val categories = remember(channels) { 
-            listOf("Todos") + channels.map { it.category }.distinct().sorted() 
+        val categories = remember(channels, selectedListName) {
+            val base = if (selectedListName == "Todas las listas") channels else channels.filter { it.sourceListName == selectedListName }
+            listOf("Todos") + base.map { it.category }.distinct().sorted()
         }
         LazyRow(modifier = Modifier.padding(horizontal = 8.dp)) {
             items(categories) { category ->
@@ -285,8 +312,9 @@ fun MainTvScreen(
             }
         }
 
-        val filteredChannels = remember(channels, searchQuery, selectedCategory) {
+        val filteredChannels = remember(channels, searchQuery, selectedCategory, selectedListName) {
             channels.filter { 
+                (selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
                 (selectedCategory == "Todos" || it.category == selectedCategory) &&
                 it.name.contains(searchQuery, ignoreCase = true)
             }
@@ -303,29 +331,63 @@ fun MainTvScreen(
     showPlayerDialog?.let { channel ->
         AlertDialog(
             onDismissRequest = { showPlayerDialog = null },
-            title = { Text("Reproducir Canal") },
+            title = { Text("Reproducir Canal", style = MaterialTheme.typography.headlineSmall) },
             text = { Text("¿Deseas usar el reproductor interno o uno externo?") },
+            containerColor = MaterialTheme.colorScheme.surface,
             confirmButton = {
-                Button(onClick = {
-                    onChannelSelected(channel)
-                    showPlayerDialog = null
-                }) { Text("Interno") }
+                Button(
+                    onClick = {
+                        onChannelSelected(channel)
+                        showPlayerDialog = null
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 12.dp, focusedElevation = 16.dp)
+                ) {
+                    Text("REPRODUCTOR INTERNO", style = MaterialTheme.typography.labelLarge)
+                }
             },
             dismissButton = {
-                Button(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW)
-                    intent.setDataAndType(Uri.parse(channel.url), "video/*")
-                    try {
-                        context.startActivity(Intent.createChooser(intent, "Abrir con"))
-                    } catch (e: Exception) {
-                        // Fallback if video/* doesn't work for acestream://
+                Button(
+                    onClick = {
+                        val videoUri = Uri.parse(channel.url)
+                        val intent = Intent(Intent.ACTION_VIEW)
+                        
                         if (channel.url.startsWith("acestream://")) {
-                            val aceIntent = Intent(Intent.ACTION_VIEW, Uri.parse(channel.url))
-                            context.startActivity(aceIntent)
+                            intent.data = videoUri
+                        } else if (channel.url.contains("/ace/getstream?id=")) {
+                            // Convertir localhost ace stream a protocolo acestream:// si es necesario
+                            val aceId = channel.url.substringAfter("id=")
+                            intent.data = Uri.parse("acestream://$aceId")
+                        } else {
+                            intent.setDataAndType(videoUri, "video/*")
                         }
-                    }
-                    showPlayerDialog = null
-                }) { Text("Externo") }
+                        
+                        try {
+                            context.startActivity(Intent.createChooser(intent, "Abrir con"))
+                        } catch (e: Exception) {
+                            try {
+                                // Fallback para acestream si falla el chooser
+                                if (channel.url.contains("ace")) {
+                                    val aceIntent = Intent(Intent.ACTION_VIEW, intent.data)
+                                    context.startActivity(aceIntent)
+                                }
+                            } catch (e2: Exception) {}
+                        }
+                        showPlayerDialog = null
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 12.dp, focusedElevation = 16.dp)
+                ) {
+                    Text("REPRODUCTOR EXTERNO (ACESTREAM)", style = MaterialTheme.typography.labelLarge)
+                }
             }
         )
     }
@@ -336,15 +398,22 @@ fun ListsManagementScreen(
     lists: List<M3UList>,
     onSaveLists: (List<M3UList>) -> Unit
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
-    var newListName by remember { mutableStateOf("") }
-    var newListUrl by remember { mutableStateOf("") }
+    var showDialog by remember { mutableStateOf<M3UList?>(null) }
+    var listToEdit by remember { mutableStateOf<M3UList?>(null) }
+    
+    var nameField by remember { mutableStateOf("") }
+    var urlField by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Gestión de Listas M3U", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = { showAddDialog = true }) {
+            IconButton(onClick = { 
+                listToEdit = null
+                nameField = ""
+                urlField = ""
+                showDialog = M3UList(name = "", url = "") 
+            }) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir")
             }
         }
@@ -355,10 +424,20 @@ fun ListsManagementScreen(
                     headlineContent = { Text(list.name) },
                     supportingContent = { Text(list.url) },
                     trailingContent = {
-                        IconButton(onClick = {
-                            onSaveLists(lists.filter { it.id != list.id })
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = Color.Red)
+                        Row {
+                            IconButton(onClick = {
+                                listToEdit = list
+                                nameField = list.name
+                                urlField = list.url
+                                showDialog = list
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Cyan)
+                            }
+                            IconButton(onClick = {
+                                onSaveLists(lists.filter { it.id != list.id })
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = Color.Red)
+                            }
                         }
                     }
                 )
@@ -367,29 +446,33 @@ fun ListsManagementScreen(
         }
     }
 
-    if (showAddDialog) {
+    if (showDialog != null) {
         AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("Añadir Lista M3U") },
+            onDismissRequest = { showDialog = null },
+            title = { Text(if (listToEdit == null) "Añadir Lista M3U" else "Editar Lista M3U") },
             text = {
                 Column {
-                    TextField(value = newListName, onValueChange = { newListName = it }, label = { Text("Nombre") })
+                    TextField(value = nameField, onValueChange = { nameField = it }, label = { Text("Nombre") })
                     Spacer(Modifier.height(8.dp))
-                    TextField(value = newListUrl, onValueChange = { newListUrl = it }, label = { Text("URL") })
+                    TextField(value = urlField, onValueChange = { urlField = it }, label = { Text("URL") })
                 }
             },
             confirmButton = {
                 Button(onClick = {
-                    if (newListName.isNotBlank() && newListUrl.isNotBlank()) {
-                        onSaveLists(lists + M3UList(name = newListName, url = newListUrl))
-                        newListName = ""
-                        newListUrl = ""
-                        showAddDialog = false
+                    if (nameField.isNotBlank() && urlField.isNotBlank()) {
+                        if (listToEdit == null) {
+                            onSaveLists(lists + M3UList(name = nameField, url = urlField))
+                        } else {
+                            onSaveLists(lists.map { 
+                                if (it.id == listToEdit!!.id) it.copy(name = nameField, url = urlField) else it 
+                            })
+                        }
+                        showDialog = null
                     }
-                }) { Text("Añadir") }
+                }) { Text(if (listToEdit == null) "Añadir" else "Actualizar") }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("Cancelar") }
+                TextButton(onClick = { showDialog = null }) { Text("Cancelar") }
             }
         )
     }

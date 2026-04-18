@@ -6,7 +6,8 @@ data class Channel(
     val name: String,
     val url: String,
     val logo: String? = null,
-    val category: String = "Otros"
+    val category: String = "Otros",
+    val sourceListName: String = ""
 )
 
 data class M3UList(

@@ -8,14 +8,14 @@ import kotlinx.coroutines.withContext
 object M3UParser {
     private val client = OkHttpClient()
 
-    suspend fun fetchAndParse(url: String): List<Channel> = withContext(Dispatchers.IO) {
+    suspend fun fetchAndParse(url: String, listName: String): List<Channel> = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url).build()
         val response = client.newCall(request).execute()
         val content = response.body?.string() ?: ""
-        parse(content)
+        parse(content, listName)
     }
 
-    fun parse(content: String): List<Channel> {
+    fun parse(content: String, listName: String): List<Channel> {
         val channels = mutableListOf<Channel>()
         val lines = content.lines()
         var currentName = ""
@@ -44,9 +44,10 @@ object M3UParser {
                 if (currentName.isNotEmpty()) {
                     channels.add(Channel(
                         name = currentName, 
-                        url = url,
+                        url = url, 
                         logo = currentLogo.ifEmpty { null },
-                        category = currentCategory
+                        category = currentCategory,
+                        sourceListName = listName
                     ))
                     currentName = ""
                     currentLogo = ""
