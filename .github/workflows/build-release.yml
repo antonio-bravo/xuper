@@ -8,9 +8,9 @@ on:
         required: true
         default: '1.0.0'
 
-env:
+#env:
   # Forzamos Node24 según tu configuración original
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+#  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
