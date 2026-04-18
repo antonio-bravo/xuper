@@ -1,4 +1,4 @@
-package com.example.xuper
+package com.example.xuper.model
 
 import java.util.UUID
 
@@ -7,7 +7,8 @@ data class Channel(
     val url: String,
     val logo: String? = null,
     val category: String = "Otros",
-    val sourceListName: String = ""
+    val sourceListName: String = "",
+    val isFavorite: Boolean = false
 )
 
 data class M3UList(
@@ -15,5 +16,3 @@ data class M3UList(
     val name: String,
     val url: String
 )
-
-val sampleChannels = listOf<Channel>()

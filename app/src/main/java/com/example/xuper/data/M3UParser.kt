@@ -1,10 +1,10 @@
-package com.example.xuper
+package com.example.xuper.data
 
+import com.example.xuper.model.Channel
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.example.xuper.model.Channel
 
 object M3UParser {
     private val client = OkHttpClient()
@@ -33,33 +33,31 @@ object M3UParser {
             if (trimmedLine.isEmpty()) continue
 
             if (trimmedLine.startsWith("#EXTINF:")) {
-                // Extract name - handles cases where comma might be inside quotes or missing
+                // Extract name
                 currentName = trimmedLine.substringAfterLast(",").trim()
                 if (currentName.isEmpty() || currentName.startsWith("#")) {
                     val nameRegex = """tvg-name="([^"]+)"""".toRegex()
                     currentName = nameRegex.find(trimmedLine)?.groupValues?.get(1) ?: "Canal sin nombre"
                 }
                 
-                // Extract logo: tvg-logo="url"
                 val logoRegex = """tvg-logo="([^"]+)"""".toRegex()
                 currentLogo = logoRegex.find(trimmedLine)?.groupValues?.get(1) ?: ""
                 
-                // Extract category: group-title="category"
                 val groupRegex = """group-title="([^"]+)"""".toRegex()
                 val tvgGroupRegex = """tvg-group="([^"]+)"""".toRegex()
                 val rawCategory = groupRegex.find(trimmedLine)?.groupValues?.get(1) 
                     ?: tvgGroupRegex.find(trimmedLine)?.groupValues?.get(1) 
                     ?: "Otros"
                 
-                // Split categories if they contain semicolons and take the first one
                 currentCategory = rawCategory.split(";").firstOrNull()?.trim() ?: "Otros"
             } else if (trimmedLine.startsWith("#EXTGRP:")) {
                 currentCategory = trimmedLine.substringAfter(":").split(";").firstOrNull()?.trim() ?: "Otros"
             } else if (!trimmedLine.startsWith("#")) {
-                if (trimmedLine.isNotEmpty()) {
+                val url = trimmedLine
+                if (url.isNotEmpty()) {
                     channels.add(Channel(
-                        name = currentName.ifEmpty { "Canal" },
-                        url = trimmedLine,
+                        name = if (currentName.isEmpty()) "Canal" else currentName,
+                        url = url, 
                         logo = currentLogo.ifEmpty { null },
                         category = currentCategory,
                         sourceListName = listName

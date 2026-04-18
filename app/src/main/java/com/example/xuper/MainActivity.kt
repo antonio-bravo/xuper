@@ -1,29 +1,13 @@
 package com.example.xuper
 
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.net.Uri
 import android.os.Bundle
-import android.view.ViewGroup
-import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
-import android.webkit.WebChromeClient
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.annotation.OptIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
@@ -31,15 +15,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
-import coil.compose.AsyncImage
+import com.example.xuper.data.M3UParser
+import com.example.xuper.model.Channel
+import com.example.xuper.model.M3UList
+import com.example.xuper.ui.components.ErrorState
+import com.example.xuper.ui.components.SidebarItem
+import com.example.xuper.ui.components.UniversalPlayer
+import com.example.xuper.ui.screens.FavoritesScreen
+import com.example.xuper.ui.screens.ListsManagementScreen
+import com.example.xuper.ui.screens.MainTvScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.xuper.ui.viewmodel.MainViewModel
+import com.example.xuper.ui.viewmodel.MainViewModelFactory
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -80,20 +71,25 @@ enum class Screen {
 @Composable
 fun XuperApp() {
     val context = LocalContext.current
+    val app = context.applicationContext as XuperApplication
+    val viewModel: MainViewModel = viewModel(
+        factory = MainViewModelFactory(app.repository)
+    )
+    
     val sharedPrefs = remember { context.getSharedPreferences("xuper_prefs", Context.MODE_PRIVATE) }
     
     var currentScreen by remember { mutableStateOf(Screen.TV) }
     var selectedChannel by remember { mutableStateOf<Channel?>(null) }
-    var channels by remember { mutableStateOf(listOf<Channel>()) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Todos") }
-    var selectedListName by remember { mutableStateOf("Todas las listas") }
-    var isFullScreen by remember { mutableStateOf(false) }
     
-    var favoriteUrls by remember { 
-        mutableStateOf(sharedPrefs.getStringSet("favorites", emptySet()) ?: emptySet()) 
-    }
+    val currentChannels by viewModel.filteredChannels.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val favoriteChannels by viewModel.favoriteChannels.collectAsState()
+    
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val selectedListName by viewModel.selectedListName.collectAsState()
+    var isFullScreen by remember { mutableStateOf(false) }
     
     var m3uLists by remember {
         val saved = sharedPrefs.getString("m3u_lists", null)
@@ -117,39 +113,22 @@ fun XuperApp() {
             list.add(M3UList(name = "Rojadirecta", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/rojadirecta.m3u"))
             list.add(M3UList(name = "SportP2P", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/sportp2p.m3u"))
             list.add(M3UList(name = "VipRow", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/viprow.m3u"))
-            // Fuentes adicionales estilo Appy Infotech (Globales y VOD)
-            list.add(M3UList(name = "Appy Cine & Series", url = "https://iptv-org.github.io/iptv/categories/movies.m3u"))
-            list.add(M3UList(name = "Appy Kids", url = "https://iptv-org.github.io/iptv/categories/kids.m3u"))
-            list.add(M3UList(name = "Appy Documentales", url = "https://iptv-org.github.io/iptv/categories/documentary.m3u"))
-            list.add(M3UList(name = "IPTV Latino Full", url = "https://raw.githubusercontent.com/HecPerez/M3U-Latino/main/Latino.m3u"))
+            
+            // Fuentes de IPTV-org (Open Source)
+            list.add(M3UList(name = "Cine & Series (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/movies.m3u"))
+            list.add(M3UList(name = "Documentales (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/documentary.m3u"))
+            list.add(M3UList(name = "Deportes (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/sports.m3u"))
+            list.add(M3UList(name = "Kids (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/kids.m3u"))
         }
         mutableStateOf(list.toList())
     }
 
-    var isLoading by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val filterFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(m3uLists) {
-        scope.launch {
-            isLoading = true
-            errorMessage = null
-            val allChannels = mutableListOf<Channel>()
-            try {
-                for (source in m3uLists) {
-                    val fetched = M3UParser.fetchAndParse(source.url, source.name)
-                    allChannels.addAll(fetched)
-                }
-                channels = allChannels
-                if (channels.isEmpty()) {
-                    errorMessage = "No se pudieron cargar canales. Verifica tu conexión a internet o las URLs de las listas."
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                errorMessage = "Error al cargar canales: ${e.localizedMessage}"
-            } finally {
-                isLoading = false
-            }
-        }
+    LaunchedEffect(m3uLists, refreshTrigger) {
+        viewModel.refreshChannels(m3uLists)
     }
 
     val saveLists = { newList: List<M3UList> ->
@@ -165,10 +144,8 @@ fun XuperApp() {
         sharedPrefs.edit().putString("m3u_lists", arr.toString()).apply()
     }
 
-    val toggleFavorite: (String) -> Unit = { url ->
-        val newFavorites = if (favoriteUrls.contains(url)) favoriteUrls - url else favoriteUrls + url
-        favoriteUrls = newFavorites
-        sharedPrefs.edit().putStringSet("favorites", newFavorites).apply()
+    val toggleFavorite: (Channel) -> Unit = { channel ->
+        viewModel.toggleFavorite(channel)
     }
 
     val onPlayChannel: (Channel?) -> Unit = { channel ->
@@ -183,29 +160,49 @@ fun XuperApp() {
     } else {
         Row(modifier = Modifier.fillMaxSize()) {
             // Sidebar
-            NavigationRail(
-                modifier = Modifier.fillMaxHeight(),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(100.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Spacer(Modifier.height(16.dp))
-                NavigationRailItem(
+                
+                SidebarItem(
                     selected = currentScreen == Screen.TV,
                     onClick = { currentScreen = Screen.TV },
-                    icon = { Icon(Icons.Default.Tv, contentDescription = "TV") },
-                    label = { Text("TV") }
+                    icon = Icons.Default.Tv,
+                    label = "TV"
                 )
-                NavigationRailItem(
+                
+                SidebarItem(
                     selected = currentScreen == Screen.FAVORITES,
                     onClick = { currentScreen = Screen.FAVORITES },
-                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritos") },
-                    label = { Text("Favoritos") }
+                    icon = Icons.Default.Favorite,
+                    label = "Favoritos"
                 )
-                NavigationRailItem(
+                
+                SidebarItem(
                     selected = currentScreen == Screen.LISTS,
                     onClick = { currentScreen = Screen.LISTS },
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Listas") },
-                    label = { Text("Listas") }
+                    icon = Icons.AutoMirrored.Filled.List,
+                    label = "Listas"
                 )
+                
+                SidebarItem(
+                    selected = false,
+                    onClick = { refreshTrigger++ },
+                    icon = Icons.Default.Refresh,
+                    label = "Actualizar"
+                )
+                
+                SidebarItem(
+                    selected = false,
+                    onClick = { filterFocusRequester.requestFocus() },
+                    icon = Icons.Default.FilterList,
+                    label = "Filtros"
+                )
+                
                 Spacer(Modifier.weight(1f))
             }
 
@@ -215,36 +212,24 @@ fun XuperApp() {
             ) {
                 when (currentScreen) {
                     Screen.TV -> {
-                        if (errorMessage != null && channels.isEmpty()) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                                    Icon(Icons.Default.Error, contentDescription = null, tint = Color.Red, modifier = Modifier.size(64.dp))
-                                    Spacer(Modifier.height(16.dp))
-                                    Text(errorMessage!!, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                    Spacer(Modifier.height(24.dp))
-                                    Button(onClick = { 
-                                        m3uLists = m3uLists.toList() // Trigger reload
-                                    }) {
-                                        Text("REINTENTAR")
-                                    }
-                                }
-                            }
+                        if (errorMessage != null && currentChannels.isEmpty()) {
+                            ErrorState(errorMessage!!) { refreshTrigger++ }
                         } else {
                             MainTvScreen(
-                                channels = channels,
+                                channels = currentChannels,
                                 selectedChannel = selectedChannel,
                                 isLoading = isLoading,
                                 searchQuery = searchQuery,
-                                onSearchChange = { searchQuery = it },
+                                onSearchChange = { viewModel.setSearchQuery(it) },
                                 selectedCategory = selectedCategory,
-                                onCategoryChange = { selectedCategory = it },
+                                onCategoryChange = { viewModel.setSelectedCategory(it) },
                                 selectedListName = selectedListName,
-                                onListNameChange = { selectedListName = it },
+                                onListNameChange = { viewModel.setSelectedListName(it) },
                                 m3uLists = m3uLists,
-                                favoriteUrls = favoriteUrls,
-                                onToggleFavorite = toggleFavorite,
+                                onToggleFavorite = { toggleFavorite(it) },
                                 onChannelSelected = onPlayChannel,
-                                onFullScreen = { isFullScreen = true }
+                                onFullScreen = { isFullScreen = true },
+                                filterFocusRequester = filterFocusRequester
                             )
                         }
                     }
@@ -253,384 +238,14 @@ fun XuperApp() {
                         onSaveLists = saveLists
                     )
                     Screen.FAVORITES -> FavoritesScreen(
-                        channels = channels,
-                        favoriteUrls = favoriteUrls,
-                        onToggleFavorite = toggleFavorite,
+                        channels = favoriteChannels,
+                        onToggleFavorite = { toggleFavorite(it) },
                         onChannelSelected = onPlayChannel
                     )
                 }
             }
         }
     }
-}
-
-@Composable
-fun MainTvScreen(
-    channels: List<Channel>,
-    selectedChannel: Channel?,
-    isLoading: Boolean,
-    searchQuery: String,
-    onSearchChange: (String) -> Unit,
-    selectedCategory: String,
-    onCategoryChange: (String) -> Unit,
-    selectedListName: String,
-    onListNameChange: (String) -> Unit,
-    m3uLists: List<M3UList>,
-    favoriteUrls: Set<String>,
-    onToggleFavorite: (String) -> Unit,
-    onChannelSelected: (Channel?) -> Unit,
-    onFullScreen: () -> Unit
-) {
-    var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
-    val context = LocalContext.current
-
-    Column {
-        if (selectedChannel != null) {
-            Box(modifier = Modifier.fillMaxWidth().height(250.dp)) {
-                UniversalPlayer(url = selectedChannel.url)
-                Row(modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                    IconButton(onClick = onFullScreen) {
-                        Icon(Icons.Default.Fullscreen, contentDescription = "Full Screen", tint = Color.White)
-                    }
-                }
-                IconButton(
-                    onClick = { onChannelSelected(null) },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
-                }
-            }
-        } else {
-            Box(
-                modifier = Modifier.fillMaxWidth().height(250.dp).padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isLoading) CircularProgressIndicator() else Text("Selecciona un canal para reproducir")
-            }
-        }
-
-        // Buscador
-        TextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            placeholder = { Text("Buscar canal...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true
-        )
-
-        // Filtro de Listas
-        val listSources = remember(m3uLists) {
-            listOf("Todas las listas") + m3uLists.map { it.name }
-        }
-        LazyRow(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            items(listSources) { name ->
-                FilterChip(
-                    selected = selectedListName == name,
-                    onClick = { onListNameChange(name) },
-                    label = { Text(name) },
-                    modifier = Modifier.padding(end = 4.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-            }
-        }
-
-        // Filtro de Categorías
-        val categories = remember(channels, selectedListName) {
-            val base = if (selectedListName == "Todas las listas") channels else channels.filter { it.sourceListName == selectedListName }
-            listOf("Todos") + base.map { it.category }.distinct().sorted()
-        }
-        LazyRow(modifier = Modifier.padding(horizontal = 8.dp)) {
-            items(categories) { category ->
-                FilterChip(
-                    selected = selectedCategory == category,
-                    onClick = { onCategoryChange(category) },
-                    label = { Text(category) },
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-            }
-        }
-
-        val filteredChannels = remember(channels, searchQuery, selectedCategory, selectedListName) {
-        channels.filter { 
-            (selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
-            (selectedCategory == "Todos" || it.category == selectedCategory) &&
-            it.name.contains(searchQuery, ignoreCase = true)
-        }.distinctBy { it.url }
-    }
-
-        ChannelList(
-            channels = filteredChannels,
-            favoriteUrls = favoriteUrls,
-            onChannelSelected = { showPlayerDialog = it },
-            onToggleFavorite = onToggleFavorite
-        )
-    }
-
-    showPlayerDialog?.let { channel ->
-        AlertDialog(
-            onDismissRequest = { showPlayerDialog = null },
-            title = { Text("Reproducir Canal", style = MaterialTheme.typography.headlineSmall) },
-            text = { Text("¿Deseas usar el reproductor interno o uno externo?") },
-            containerColor = MaterialTheme.colorScheme.surface,
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onChannelSelected(channel)
-                        showPlayerDialog = null
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 12.dp, focusedElevation = 16.dp)
-                ) {
-                    Text("REPRODUCTOR INTERNO", style = MaterialTheme.typography.labelLarge)
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = {
-                        val videoUri = Uri.parse(channel.url)
-                        val intent = Intent(Intent.ACTION_VIEW)
-                        
-                        if (channel.url.startsWith("acestream://")) {
-                            intent.data = videoUri
-                        } else if (channel.url.contains("/ace/getstream?id=")) {
-                            // Convertir localhost ace stream a protocolo acestream:// si es necesario
-                            val aceId = channel.url.substringAfter("id=")
-                            intent.data = Uri.parse("acestream://$aceId")
-                        } else {
-                            intent.setDataAndType(videoUri, "video/*")
-                        }
-                        
-                        try {
-                            context.startActivity(Intent.createChooser(intent, "Abrir con"))
-                        } catch (e: Exception) {
-                            try {
-                                // Fallback para acestream si falla el chooser
-                                if (channel.url.contains("ace")) {
-                                    val aceIntent = Intent(Intent.ACTION_VIEW, intent.data)
-                                    context.startActivity(aceIntent)
-                                }
-                            } catch (e2: Exception) {}
-                        }
-                        showPlayerDialog = null
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 12.dp, focusedElevation = 16.dp)
-                ) {
-                    Text("REPRODUCTOR EXTERNO (ACESTREAM)", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun ListsManagementScreen(
-    lists: List<M3UList>,
-    onSaveLists: (List<M3UList>) -> Unit
-) {
-    var showDialog by remember { mutableStateOf<M3UList?>(null) }
-    var listToEdit by remember { mutableStateOf<M3UList?>(null) }
-    
-    var nameField by remember { mutableStateOf("") }
-    var urlField by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Gestión de Listas M3U", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = { 
-                listToEdit = null
-                nameField = ""
-                urlField = ""
-                showDialog = M3UList(name = "", url = "") 
-            }) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir")
-            }
-        }
-        
-        LazyColumn {
-            items(lists) { list ->
-                ListItem(
-                    headlineContent = { Text(list.name) },
-                    supportingContent = { Text(list.url) },
-                    trailingContent = {
-                        Row {
-                            IconButton(onClick = {
-                                listToEdit = list
-                                nameField = list.name
-                                urlField = list.url
-                                showDialog = list
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Cyan)
-                            }
-                            IconButton(onClick = {
-                                onSaveLists(lists.filter { it.id != list.id })
-                            }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = Color.Red)
-                            }
-                        }
-                    }
-                )
-                HorizontalDivider()
-            }
-        }
-    }
-
-    if (showDialog != null) {
-        AlertDialog(
-            onDismissRequest = { showDialog = null },
-            title = { Text(if (listToEdit == null) "Añadir Lista M3U" else "Editar Lista M3U") },
-            text = {
-                Column {
-                    TextField(value = nameField, onValueChange = { nameField = it }, label = { Text("Nombre") })
-                    Spacer(Modifier.height(8.dp))
-                    TextField(value = urlField, onValueChange = { urlField = it }, label = { Text("URL") })
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    if (nameField.isNotBlank() && urlField.isNotBlank()) {
-                        if (listToEdit == null) {
-                            onSaveLists(lists + M3UList(name = nameField, url = urlField))
-                        } else {
-                            onSaveLists(lists.map { 
-                                if (it.id == listToEdit!!.id) it.copy(name = nameField, url = urlField) else it 
-                            })
-                        }
-                        showDialog = null
-                    }
-                }) { Text(if (listToEdit == null) "Añadir" else "Actualizar") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialog = null }) { Text("Cancelar") }
-            }
-        )
-    }
-}
-
-@Composable
-fun FavoritesScreen(
-    channels: List<Channel>,
-    favoriteUrls: Set<String>,
-    onToggleFavorite: (String) -> Unit,
-    onChannelSelected: (Channel?) -> Unit
-) {
-    val favoriteChannels = remember(channels, favoriteUrls) {
-        channels.filter { favoriteUrls.contains(it.url) }
-    }
-    
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text("Favoritos", style = MaterialTheme.typography.headlineMedium)
-        if (favoriteChannels.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No tienes canales favoritos")
-            }
-        } else {
-            ChannelList(
-                channels = favoriteChannels,
-                favoriteUrls = favoriteUrls,
-                onChannelSelected = onChannelSelected,
-                onToggleFavorite = onToggleFavorite
-            )
-        }
-    }
-}
-
-@Composable
-fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
-    // Si la URL es de Acestream Localhost, mostramos un aviso o intentamos manejarla
-    if (url.contains("127.0.0.1:6878") || url.startsWith("acestream://")) {
-        Box(modifier = modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
-                Spacer(Modifier.height(16.dp))
-                Text("Contenido Acestream", color = Color.White, style = MaterialTheme.typography.headlineSmall)
-                Text("Usa el REPRODUCTOR EXTERNO para este canal", color = Color.Gray)
-            }
-        }
-    } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || !url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts"))) {
-        WebPlayer(url = url, modifier = modifier)
-    } else {
-        VideoPlayer(url = url, modifier = modifier)
-    }
-}
-
-@Composable
-fun WebPlayer(url: String, modifier: Modifier = Modifier) {
-    AndroidView(
-        factory = { context ->
-            WebView(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.mediaPlaybackRequiresUserGesture = false
-                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                
-                webViewClient = WebViewClient()
-                webChromeClient = WebChromeClient()
-                
-                loadUrl(url)
-            }
-        },
-        modifier = modifier.fillMaxSize(),
-        update = { webView ->
-            if (webView.url != url) {
-                webView.loadUrl(url)
-            }
-        }
-    )
-}
-
-@OptIn(UnstableApi::class)
-@Composable
-fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            prepare()
-            playWhenReady = true
-        }
-    }
-
-    LaunchedEffect(url) {
-        exoPlayer.setMediaItem(MediaItem.fromUri(url))
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
-    }
-
-    AndroidView(
-        factory = {
-            PlayerView(context).apply {
-                player = exoPlayer
-                useController = true
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            }
-        },
-        modifier = modifier.fillMaxSize()
-    )
 }
 
 @Composable
@@ -654,80 +269,6 @@ fun FullScreenPlayer(url: String, onClose: () -> Unit) {
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
         ) {
             Icon(Icons.Default.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
-        }
-    }
-}
-
-@Composable
-fun ChannelList(
-    channels: List<Channel>,
-    favoriteUrls: Set<String>,
-    onChannelSelected: (Channel) -> Unit,
-    onToggleFavorite: (String) -> Unit
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        contentPadding = PaddingValues(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        gridItems(channels) { channel ->
-            val isFavorite = favoriteUrls.contains(channel.url)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onChannelSelected(channel) },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(70.dp)
-                            .background(Color.Black.copy(alpha = 0.3f), shape = MaterialTheme.shapes.medium),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (channel.logo != null) {
-                            AsyncImage(
-                                model = channel.logo,
-                                contentDescription = null,
-                                modifier = Modifier.size(60.dp)
-                            )
-                        } else {
-                            Text(
-                                text = channel.name.take(1),
-                                style = MaterialTheme.typography.headlineLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = channel.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Text(
-                        text = channel.category,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        maxLines = 1
-                    )
-                    IconButton(onClick = { onToggleFavorite(channel.url) }) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Favorito",
-                            tint = if (isFavorite) Color.Red else Color.Gray,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
         }
     }
 }
