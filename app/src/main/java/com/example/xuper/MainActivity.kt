@@ -103,6 +103,11 @@ fun XuperApp() {
             list.add(M3UList(name = "Rojadirecta", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/rojadirecta.m3u"))
             list.add(M3UList(name = "SportP2P", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/sportp2p.m3u"))
             list.add(M3UList(name = "VipRow", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/viprow.m3u"))
+            // Fuentes adicionales estilo Appy Infotech (Globales y VOD)
+            list.add(M3UList(name = "Appy Cine & Series", url = "https://iptv-org.github.io/iptv/categories/movies.m3u"))
+            list.add(M3UList(name = "Appy Kids", url = "https://iptv-org.github.io/iptv/categories/kids.m3u"))
+            list.add(M3UList(name = "Appy Documentales", url = "https://iptv-org.github.io/iptv/categories/documentary.m3u"))
+            list.add(M3UList(name = "IPTV Latino Full", url = "https://raw.githubusercontent.com/HecPerez/M3U-Latino/main/Latino.m3u"))
         }
         mutableStateOf(list.toList())
     }
