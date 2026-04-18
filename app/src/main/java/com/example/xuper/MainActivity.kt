@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
@@ -54,8 +57,18 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun XuperTheme(content: @Composable () -> Unit) {
+    val xuperColors = darkColorScheme(
+        primary = Color(0xFF00A8FF),
+        secondary = Color(0xFF191919),
+        surface = Color(0xFF121212),
+        background = Color(0xFF0A0A0A),
+        onPrimary = Color.White,
+        onSurface = Color.White,
+        onBackground = Color.White
+    )
     MaterialTheme(
-        colorScheme = darkColorScheme(),
+        colorScheme = xuperColors,
+        typography = Typography(),
         content = content
     )
 }
@@ -72,6 +85,7 @@ fun XuperApp() {
     var currentScreen by remember { mutableStateOf(Screen.TV) }
     var selectedChannel by remember { mutableStateOf<Channel?>(null) }
     var channels by remember { mutableStateOf(listOf<Channel>()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Todos") }
     var selectedListName by remember { mutableStateOf("Todas las listas") }
@@ -118,6 +132,7 @@ fun XuperApp() {
     LaunchedEffect(m3uLists) {
         scope.launch {
             isLoading = true
+            errorMessage = null
             val allChannels = mutableListOf<Channel>()
             try {
                 for (source in m3uLists) {
@@ -125,8 +140,12 @@ fun XuperApp() {
                     allChannels.addAll(fetched)
                 }
                 channels = allChannels
+                if (channels.isEmpty()) {
+                    errorMessage = "No se pudieron cargar canales. Verifica tu conexión a internet o las URLs de las listas."
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                errorMessage = "Error al cargar canales: ${e.localizedMessage}"
             } finally {
                 isLoading = false
             }
@@ -195,22 +214,40 @@ fun XuperApp() {
                 color = MaterialTheme.colorScheme.background
             ) {
                 when (currentScreen) {
-                    Screen.TV -> MainTvScreen(
-                        channels = channels,
-                        selectedChannel = selectedChannel,
-                        isLoading = isLoading,
-                        searchQuery = searchQuery,
-                        onSearchChange = { searchQuery = it },
-                        selectedCategory = selectedCategory,
-                        onCategoryChange = { selectedCategory = it },
-                        selectedListName = selectedListName,
-                        onListNameChange = { selectedListName = it },
-                        m3uLists = m3uLists,
-                        favoriteUrls = favoriteUrls,
-                        onToggleFavorite = toggleFavorite,
-                        onChannelSelected = onPlayChannel,
-                        onFullScreen = { isFullScreen = true }
-                    )
+                    Screen.TV -> {
+                        if (errorMessage != null && channels.isEmpty()) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                                    Icon(Icons.Default.Error, contentDescription = null, tint = Color.Red, modifier = Modifier.size(64.dp))
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(errorMessage!!, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    Spacer(Modifier.height(24.dp))
+                                    Button(onClick = { 
+                                        m3uLists = m3uLists.toList() // Trigger reload
+                                    }) {
+                                        Text("REINTENTAR")
+                                    }
+                                }
+                            }
+                        } else {
+                            MainTvScreen(
+                                channels = channels,
+                                selectedChannel = selectedChannel,
+                                isLoading = isLoading,
+                                searchQuery = searchQuery,
+                                onSearchChange = { searchQuery = it },
+                                selectedCategory = selectedCategory,
+                                onCategoryChange = { selectedCategory = it },
+                                selectedListName = selectedListName,
+                                onListNameChange = { selectedListName = it },
+                                m3uLists = m3uLists,
+                                favoriteUrls = favoriteUrls,
+                                onToggleFavorite = toggleFavorite,
+                                onChannelSelected = onPlayChannel,
+                                onFullScreen = { isFullScreen = true }
+                            )
+                        }
+                    }
                     Screen.LISTS -> ListsManagementScreen(
                         lists = m3uLists,
                         onSaveLists = saveLists
@@ -318,12 +355,12 @@ fun MainTvScreen(
         }
 
         val filteredChannels = remember(channels, searchQuery, selectedCategory, selectedListName) {
-            channels.filter { 
-                (selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
-                (selectedCategory == "Todos" || it.category == selectedCategory) &&
-                it.name.contains(searchQuery, ignoreCase = true)
-            }
-        }
+        channels.filter { 
+            (selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
+            (selectedCategory == "Todos" || it.category == selectedCategory) &&
+            it.name.contains(searchQuery, ignoreCase = true)
+        }.distinctBy { it.url }
+    }
 
         ChannelList(
             channels = filteredChannels,
@@ -513,7 +550,17 @@ fun FavoritesScreen(
 
 @Composable
 fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
-    if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || !url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts"))) {
+    // Si la URL es de Acestream Localhost, mostramos un aviso o intentamos manejarla
+    if (url.contains("127.0.0.1:6878") || url.startsWith("acestream://")) {
+        Box(modifier = modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
+                Spacer(Modifier.height(16.dp))
+                Text("Contenido Acestream", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+                Text("Usa el REPRODUCTOR EXTERNO para este canal", color = Color.Gray)
+            }
+        }
+    } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || !url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts"))) {
         WebPlayer(url = url, modifier = modifier)
     } else {
         VideoPlayer(url = url, modifier = modifier)
@@ -618,37 +665,69 @@ fun ChannelList(
     onChannelSelected: (Channel) -> Unit,
     onToggleFavorite: (String) -> Unit
 ) {
-    LazyColumn {
-        items(channels) { channel ->
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 160.dp),
+        contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        gridItems(channels) { channel ->
             val isFavorite = favoriteUrls.contains(channel.url)
-            ListItem(
-                headlineContent = { Text(channel.name) },
-                supportingContent = { Text(channel.category) },
-                leadingContent = {
-                    if (channel.logo != null) {
-                        AsyncImage(
-                            model = channel.logo,
-                            contentDescription = null,
-                            modifier = Modifier.size(40.dp)
-                        )
-                    } else {
-                        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                            Text(channel.name.take(1))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onChannelSelected(channel) },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(70.dp)
+                            .background(Color.Black.copy(alpha = 0.3f), shape = MaterialTheme.shapes.medium),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (channel.logo != null) {
+                            AsyncImage(
+                                model = channel.logo,
+                                contentDescription = null,
+                                modifier = Modifier.size(60.dp)
+                            )
+                        } else {
+                            Text(
+                                text = channel.name.take(1),
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
-                },
-                trailingContent = {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Text(
+                        text = channel.category,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        maxLines = 1
+                    )
                     IconButton(onClick = { onToggleFavorite(channel.url) }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorito",
-                            tint = if (isFavorite) Color.Red else Color.Gray
+                            tint = if (isFavorite) Color.Red else Color.Gray,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                },
-                modifier = Modifier.clickable { onChannelSelected(channel) }
-            )
-            HorizontalDivider()
+                }
+            }
         }
     }
 }
