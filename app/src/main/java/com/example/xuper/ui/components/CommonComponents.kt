@@ -7,14 +7,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PlayCircle
@@ -22,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -43,7 +42,7 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
                 Text("Usa el REPRODUCTOR EXTERNO para este canal", color = Color.Gray)
             }
         }
-    } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || !url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts"))) {
+    } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || (!url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts")))) {
         WebPlayer(url = url, modifier = modifier)
     } else {
         VideoPlayer(url = url, modifier = modifier)
@@ -57,8 +56,9 @@ fun WebPlayer(url: String, modifier: Modifier = Modifier) {
             WebView(context).apply {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
+                    ViewGroup.LayoutParams.MATCH_PARENT,
                 )
+                @Suppress("SetJavaScriptEnabled")
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.mediaPlaybackRequiresUserGesture = false
@@ -71,12 +71,11 @@ fun WebPlayer(url: String, modifier: Modifier = Modifier) {
             }
         },
         modifier = modifier.fillMaxSize(),
-        update = { webView ->
-            if (webView.url != url) {
-                webView.loadUrl(url)
-            }
+    ) { webView ->
+        if (webView.url != url) {
+            webView.loadUrl(url)
         }
-    )
+    }
 }
 
 @OptIn(UnstableApi::class)
@@ -123,7 +122,7 @@ fun SidebarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(value = false) }
     val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "scale")
     val backgroundColor by animateColorAsState(
         targetValue = when {

@@ -31,9 +31,9 @@ fun ChannelCard(
     channel: Channel,
     onChannelSelected: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    var isFocused by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(value = false) }
     val isFavorite = channel.isFavorite
     
     val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "scale")

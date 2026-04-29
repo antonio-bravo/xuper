@@ -1,7 +1,6 @@
 package com.example.xuper.ui.screens
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -21,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.example.xuper.model.Channel
 import com.example.xuper.model.M3UList
 import com.example.xuper.ui.components.ChannelList
@@ -41,22 +41,26 @@ fun MainTvScreen(
     onToggleFavorite: (Channel) -> Unit,
     onChannelSelected: (Channel?) -> Unit,
     onFullScreen: () -> Unit,
-    filterFocusRequester: FocusRequester
+    filterFocusRequester: FocusRequester,
 ) {
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
     val context = LocalContext.current
 
     Column {
         if (selectedChannel != null) {
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .height(250.dp)
-                .focusable()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp)
+                    .focusable(),
+            ) {
                 UniversalPlayer(url = selectedChannel.url)
-                Row(modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(8.dp)) {
-                    var isFsFocused by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp),
+                ) {
+                    var isFsFocused by remember { mutableStateOf(value = false) }
                     val fsScale by animateFloatAsState(if (isFsFocused) 1.2f else 1f, label = "fsScale")
                     IconButton(
                         onClick = onFullScreen,
@@ -76,7 +80,7 @@ fun MainTvScreen(
                         )
                     }
                 }
-                var isCloseFocused by remember { mutableStateOf(false) }
+                var isCloseFocused by remember { mutableStateOf(value = false) }
                 val closeScale by animateFloatAsState(if (isCloseFocused) 1.2f else 1f, label = "closeScale")
                 IconButton(
                     onClick = { onChannelSelected(null) },
@@ -107,7 +111,7 @@ fun MainTvScreen(
         }
 
         // Buscador
-        var isSearchFocused by remember { mutableStateOf(false) }
+        var isSearchFocused by remember { mutableStateOf(value = false) }
         val searchScale by animateFloatAsState(if (isSearchFocused) 1.02f else 1f, label = "searchScale")
         TextField(
             value = searchQuery,
@@ -138,7 +142,7 @@ fun MainTvScreen(
         LazyRow(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             items(listSources.size) { index ->
                 val name = listSources[index]
-                var isFocused by remember { mutableStateOf(false) }
+                var isFocused by remember { mutableStateOf(value = false) }
                 val chipScale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "chipScale")
                 FilterChip(
                     selected = selectedListName == name,
@@ -166,12 +170,12 @@ fun MainTvScreen(
         // Filtro de Categorías
         val categories = remember(channels, selectedListName) {
             val base = if (selectedListName == "Todas las listas") channels else channels.filter { it.sourceListName == selectedListName }
-            listOf("Todos") + base.map { it.category }.distinct().sorted()
+            listOf("Todos") + base.asSequence().map { it.category }.distinct().sorted().toList()
         }
         LazyRow(modifier = Modifier.padding(horizontal = 8.dp)) {
             items(categories.size) { index ->
                 val category = categories[index]
-                var isFocused by remember { mutableStateOf(false) }
+                var isFocused by remember { mutableStateOf(value = false) }
                 val catScale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "catScale")
                 FilterChip(
                     selected = selectedCategory == category,
@@ -196,10 +200,10 @@ fun MainTvScreen(
         }
 
         val filteredChannels = remember(channels, searchQuery, selectedCategory, selectedListName) {
-            channels.filter { 
-                (selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
-                (selectedCategory == "Todos" || it.category == selectedCategory) &&
-                it.name.contains(searchQuery, ignoreCase = true)
+            channels.filter {
+                ((selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
+                        (selectedCategory == "Todos" || it.category == selectedCategory) &&
+                        it.name.contains(searchQuery, ignoreCase = true))
             }.distinctBy { it.url }
         }
 
@@ -212,7 +216,6 @@ fun MainTvScreen(
     }
 
     showPlayerDialog?.let { channel ->
-        val isFavorite = channel.isFavorite
         AlertDialog(
             onDismissRequest = { showPlayerDialog = null },
             title = { Text(channel.name, style = MaterialTheme.typography.headlineSmall) },
@@ -227,7 +230,7 @@ fun MainTvScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    var isIntFocused by remember { mutableStateOf(false) }
+                    var isIntFocused by remember { mutableStateOf(value = false) }
                     val intScale by animateFloatAsState(if (isIntFocused) 1.05f else 1f, label = "intScale")
                     Button(
                         onClick = {
@@ -250,7 +253,7 @@ fun MainTvScreen(
                         Text("REPRODUCTOR INTERNO", style = MaterialTheme.typography.titleMedium)
                     }
                     
-                    var isExtFocused by remember { mutableStateOf(false) }
+                    var isExtFocused by remember { mutableStateOf(value = false) }
                     val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
                     Button(
                         onClick = {
@@ -261,7 +264,7 @@ fun MainTvScreen(
                             }
                             val intent = if (aceId.isNotEmpty()) {
                                 Intent(Intent.ACTION_VIEW).apply {
-                                    data = Uri.parse("acestream://$aceId")
+                                    data = "acestream://$aceId".toUri()
                                     putExtra("id", aceId)
                                     putExtra("content_id", aceId)
                                     putExtra("name", channel.name)
@@ -269,12 +272,12 @@ fun MainTvScreen(
                                 }
                             } else {
                                 Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(Uri.parse(channel.url), "video/*")
+                                    setDataAndType(channel.url.toUri(), "video/*")
                                 }
                             }
                             try {
                                 context.startActivity(intent)
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 val chooser = Intent.createChooser(intent, "Abrir con...")
                                 chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 context.startActivity(chooser)
@@ -297,7 +300,7 @@ fun MainTvScreen(
                         Text("REPRODUCTOR EXTERNO", style = MaterialTheme.typography.titleMedium)
                     }
 
-                    var isFavFocused by remember { mutableStateOf(false) }
+                    var isFavFocused by remember { mutableStateOf(value = false) }
                     val favScale by animateFloatAsState(if (isFavFocused) 1.05f else 1f, label = "favScale")
                     OutlinedButton(
                         onClick = {
@@ -314,13 +317,13 @@ fun MainTvScreen(
                             )
                     ) {
                         Icon(
-                            if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (isFavorite) Color.Red else Color.Gray
+                            tint = if (channel.isFavorite) Color.Red else Color.Gray
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(if (isFavorite) "QUITAR DE FAVORITOS" else "AÑADIR A FAVORITOS")
+                        Text(if (channel.isFavorite) "QUITAR DE FAVORITOS" else "AÑADIR A FAVORITOS")
                     }
                 }
             },

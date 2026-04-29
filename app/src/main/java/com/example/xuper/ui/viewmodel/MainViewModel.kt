@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
 
-    private val _isLoading = MutableStateFlow(false)
+    private val _isLoading = MutableStateFlow(value = false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -38,7 +38,7 @@ class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
         searchQuery,
         selectedCategory,
         selectedListName,
-        allChannels // This triggers refresh when DB changes
+        allChannels, // This triggers refresh when DB changes
     ) { query, category, listName, _ ->
         Triple(query, category, listName)
     }.flatMapLatest { (query, category, listName) ->

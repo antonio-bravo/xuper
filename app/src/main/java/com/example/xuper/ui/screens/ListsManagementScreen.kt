@@ -21,7 +21,7 @@ import com.example.xuper.model.M3UList
 @Composable
 fun ListsManagementScreen(
     lists: List<M3UList>,
-    onSaveLists: (List<M3UList>) -> Unit
+    onSaveLists: (List<M3UList>) -> Unit,
 ) {
     var showDialog by remember { mutableStateOf<M3UList?>(null) }
     var listToEdit by remember { mutableStateOf<M3UList?>(null) }
@@ -33,12 +33,14 @@ fun ListsManagementScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Gestión de Listas M3U", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = { 
-                listToEdit = null
-                nameField = ""
-                urlField = ""
-                showDialog = M3UList(name = "", url = "") 
-            }) {
+            IconButton(
+                onClick = {
+                    listToEdit = null
+                    nameField = ""
+                    urlField = ""
+                    showDialog = M3UList(name = "", url = "")
+                },
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir")
             }
         }
@@ -50,7 +52,7 @@ fun ListsManagementScreen(
                     supportingContent = { Text(list.url) },
                     trailingContent = {
                         Row {
-                            var isEditFocused by remember { mutableStateOf(false) }
+                            var isEditFocused by remember { mutableStateOf(value = false) }
                             IconButton(
                                 onClick = {
                                     listToEdit = list
@@ -68,7 +70,7 @@ fun ListsManagementScreen(
                             ) {
                                 Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.Cyan)
                             }
-                            var isDeleteFocused by remember { mutableStateOf(false) }
+                            var isDeleteFocused by remember { mutableStateOf(value = false) }
                             IconButton(
                                 onClick = {
                                     onSaveLists(lists.filter { it.id != list.id })

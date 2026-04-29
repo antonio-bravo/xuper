@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,7 +20,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.xuper.data.M3UParser
+import androidx.core.content.edit
 import com.example.xuper.model.Channel
 import com.example.xuper.model.M3UList
 import com.example.xuper.ui.components.ErrorState
@@ -28,6 +29,7 @@ import com.example.xuper.ui.components.UniversalPlayer
 import com.example.xuper.ui.screens.FavoritesScreen
 import com.example.xuper.ui.screens.ListsManagementScreen
 import com.example.xuper.ui.screens.MainTvScreen
+import com.example.xuper.ui.screens.XuperConfigScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xuper.ui.viewmodel.MainViewModel
 import com.example.xuper.ui.viewmodel.MainViewModelFactory
@@ -55,7 +57,7 @@ fun XuperTheme(content: @Composable () -> Unit) {
         background = Color(0xFF0A0A0A),
         onPrimary = Color.White,
         onSurface = Color.White,
-        onBackground = Color.White
+        onBackground = Color.White,
     )
     MaterialTheme(
         colorScheme = xuperColors,
@@ -65,7 +67,7 @@ fun XuperTheme(content: @Composable () -> Unit) {
 }
 
 enum class Screen {
-    TV, LISTS, FAVORITES
+    TV, LISTS, FAVORITES, XUPER_CONFIG
 }
 
 @Composable
@@ -89,7 +91,7 @@ fun XuperApp() {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedListName by viewModel.selectedListName.collectAsState()
-    var isFullScreen by remember { mutableStateOf(false) }
+    var isFullScreen by remember { mutableStateOf(value = false) }
     
     var m3uLists by remember {
         val saved = sharedPrefs.getString("m3u_lists", null)
@@ -101,7 +103,9 @@ fun XuperApp() {
                     val obj = arr.getJSONObject(i)
                     list.add(M3UList(obj.getString("id"), obj.getString("name"), obj.getString("url")))
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                // Ignore parsing errors
+            }
         }
         
         if (list.isEmpty()) {
@@ -123,8 +127,7 @@ fun XuperApp() {
         mutableStateOf(list.toList())
     }
 
-    var refreshTrigger by remember { mutableStateOf(0) }
-    val scope = rememberCoroutineScope()
+    var refreshTrigger by remember { mutableIntStateOf(0) }
     val filterFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(m3uLists, refreshTrigger) {
@@ -141,7 +144,7 @@ fun XuperApp() {
             obj.put("url", it.url)
             arr.put(obj)
         }
-        sharedPrefs.edit().putString("m3u_lists", arr.toString()).apply()
+        sharedPrefs.edit { putString("m3u_lists", arr.toString()) }
     }
 
     val toggleFavorite: (Channel) -> Unit = { channel ->
@@ -153,8 +156,9 @@ fun XuperApp() {
     }
 
     if (isFullScreen && selectedChannel != null) {
+        val channelUrl = selectedChannel?.url ?: ""
         FullScreenPlayer(
-            url = selectedChannel!!.url,
+            url = channelUrl,
             onClose = { isFullScreen = false }
         )
     } else {
@@ -187,6 +191,13 @@ fun XuperApp() {
                     onClick = { currentScreen = Screen.LISTS },
                     icon = Icons.AutoMirrored.Filled.List,
                     label = "Listas"
+                )
+
+                SidebarItem(
+                    selected = currentScreen == Screen.XUPER_CONFIG,
+                    onClick = { currentScreen = Screen.XUPER_CONFIG },
+                    icon = Icons.Default.Settings,
+                    label = "Xuper"
                 )
                 
                 SidebarItem(
@@ -242,6 +253,7 @@ fun XuperApp() {
                         onToggleFavorite = { toggleFavorite(it) },
                         onChannelSelected = onPlayChannel
                     )
+                    Screen.XUPER_CONFIG -> XuperConfigScreen()
                 }
             }
         }
@@ -265,10 +277,10 @@ fun FullScreenPlayer(url: String, onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         UniversalPlayer(url = url)
         IconButton(
-            onClick = onClose,
+            onClick = { onClose() },
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
         ) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
         }
     }
 }

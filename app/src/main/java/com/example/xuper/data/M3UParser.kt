@@ -53,15 +53,16 @@ object M3UParser {
             } else if (trimmedLine.startsWith("#EXTGRP:")) {
                 currentCategory = trimmedLine.substringAfter(":").split(";").firstOrNull()?.trim() ?: "Otros"
             } else if (!trimmedLine.startsWith("#")) {
-                val url = trimmedLine
-                if (url.isNotEmpty()) {
-                    channels.add(Channel(
-                        name = if (currentName.isEmpty()) "Canal" else currentName,
-                        url = url, 
-                        logo = currentLogo.ifEmpty { null },
-                        category = currentCategory,
-                        sourceListName = listName
-                    ))
+                if (trimmedLine.isNotEmpty()) {
+                    channels.add(
+                        Channel(
+                            name = currentName.ifEmpty { "Canal" },
+                            url = trimmedLine,
+                            logo = currentLogo.ifEmpty { null },
+                            category = currentCategory,
+                            sourceListName = listName,
+                        ),
+                    )
                     currentName = ""
                     currentLogo = ""
                     currentCategory = "Otros"

@@ -39,7 +39,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         logo = logo,
         category = category,
         sourceListName = sourceListName,
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
     )
 
     private fun Channel.toEntity(source: String) = ChannelEntity(
@@ -48,6 +48,6 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         logo = logo,
         category = category,
         sourceListName = source,
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
     )
 }
