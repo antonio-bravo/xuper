@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.xuper.model.Channel
 import com.example.xuper.model.M3UList
+import com.example.xuper.ui.LanguageManager
+import com.example.xuper.ui.stringResourceAI
 import com.example.xuper.ui.components.ChannelList
 import com.example.xuper.ui.components.UniversalPlayer
 
@@ -106,38 +108,13 @@ fun MainTvScreen(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (isLoading) CircularProgressIndicator() else Text("Selecciona un canal para reproducir")
+                if (isLoading) CircularProgressIndicator() else Text(stringResourceAI("select_channel_msg"))
             }
         }
 
-        // Buscador
-        var isSearchFocused by remember { mutableStateOf(value = false) }
-        val searchScale by animateFloatAsState(if (isSearchFocused) 1.02f else 1f, label = "searchScale")
-        TextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .onFocusChanged { isSearchFocused = it.isFocused }
-                .scale(searchScale)
-                .border(
-                    width = if (isSearchFocused) 3.dp else 0.dp,
-                    color = if (isSearchFocused) Color.White else Color.Transparent,
-                    shape = MaterialTheme.shapes.small
-                ),
-            placeholder = { Text("Buscar canal...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.secondary,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-
         // Filtro de Listas
         val listSources = remember(m3uLists) {
-            listOf("Todas las listas") + m3uLists.map { it.name }
+            listOf(LanguageManager.getString("all_lists")) + m3uLists.map { it.name }
         }
         LazyRow(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             items(listSources.size) { index ->
@@ -169,8 +146,9 @@ fun MainTvScreen(
 
         // Filtro de Categorías
         val categories = remember(channels, selectedListName) {
-            val base = if (selectedListName == "Todas las listas") channels else channels.filter { it.sourceListName == selectedListName }
-            listOf("Todos") + base.asSequence().map { it.category }.distinct().sorted().toList()
+            val allListsLabel = LanguageManager.getString("all_lists")
+            val base = if (selectedListName == allListsLabel) channels else channels.filter { it.sourceListName == selectedListName }
+            listOf(LanguageManager.getString("all_categories")) + base.asSequence().map { it.category }.distinct().sorted().toList()
         }
         LazyRow(modifier = Modifier.padding(horizontal = 8.dp)) {
             items(categories.size) { index ->
@@ -200,9 +178,11 @@ fun MainTvScreen(
         }
 
         val filteredChannels = remember(channels, searchQuery, selectedCategory, selectedListName) {
+            val allListsLabel = LanguageManager.getString("all_lists")
+            val allCategoriesLabel = LanguageManager.getString("all_categories")
             channels.filter {
-                ((selectedListName == "Todas las listas" || it.sourceListName == selectedListName) &&
-                        (selectedCategory == "Todos" || it.category == selectedCategory) &&
+                ((selectedListName == allListsLabel || it.sourceListName == selectedListName) &&
+                        (selectedCategory == allCategoriesLabel || it.category == selectedCategory) &&
                         it.name.contains(searchQuery, ignoreCase = true))
             }.distinctBy { it.url }
         }
@@ -213,17 +193,42 @@ fun MainTvScreen(
             onToggleFavorite = onToggleFavorite,
             modifier = Modifier.weight(1f)
         )
+
+        // Buscador movido al final
+        var isSearchFocused by remember { mutableStateOf(value = false) }
+        val searchScale by animateFloatAsState(if (isSearchFocused) 1.02f else 1f, label = "searchScale")
+        TextField(
+            value = searchQuery,
+            onValueChange = onSearchChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .onFocusChanged { isSearchFocused = it.isFocused }
+                .scale(searchScale)
+                .border(
+                    width = if (isSearchFocused) 3.dp else 0.dp,
+                    color = if (isSearchFocused) Color.White else Color.Transparent,
+                    shape = MaterialTheme.shapes.small,
+                ),
+            placeholder = { Text(stringResourceAI("search_placeholder")) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.secondary,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            ),
+        )
     }
 
     showPlayerDialog?.let { channel ->
         AlertDialog(
             onDismissRequest = { showPlayerDialog = null },
             title = { Text(channel.name, style = MaterialTheme.typography.headlineSmall) },
-            text = { 
+            text = {
                 Column {
-                    Text("¿Deseas reproducir este canal o gestionarlo?")
+                    Text(stringResourceAI("select_player"))
                     if (channel.category != "Otros") {
-                        Text("Categoría: ${channel.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("${stringResourceAI("category")}: ${channel.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
             },
@@ -244,15 +249,16 @@ fun MainTvScreen(
                             .border(
                                 width = if (isIntFocused) 4.dp else 0.dp,
                                 color = if (isIntFocused) Color.White else Color.Transparent,
-                                shape = ButtonDefaults.shape
+                                shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isIntFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                        )
+                            containerColor = if (isIntFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                            contentColor = if (isIntFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                        ),
                     ) {
-                        Text("REPRODUCTOR INTERNO", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
                     }
-                    
+
                     var isExtFocused by remember { mutableStateOf(value = false) }
                     val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
                     Button(
@@ -273,14 +279,19 @@ fun MainTvScreen(
                             } else {
                                 Intent(Intent.ACTION_VIEW).apply {
                                     setDataAndType(channel.url.toUri(), "video/*")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                             }
                             try {
                                 context.startActivity(intent)
                             } catch (_: Exception) {
-                                val chooser = Intent.createChooser(intent, "Abrir con...")
-                                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(chooser)
+                                try {
+                                    val chooser = Intent.createChooser(intent, "Abrir con...")
+                                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(chooser)
+                                } catch (_: Exception) {
+                                    // Handle no app case
+                                }
                             }
                             showPlayerDialog = null
                         },
@@ -291,13 +302,14 @@ fun MainTvScreen(
                             .border(
                                 width = if (isExtFocused) 4.dp else 0.dp,
                                 color = if (isExtFocused) Color.White else Color.Transparent,
-                                shape = ButtonDefaults.shape
+                                shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isExtFocused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
-                        )
+                            containerColor = if (isExtFocused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f),
+                            contentColor = if (isExtFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                        ),
                     ) {
-                        Text("REPRODUCTOR EXTERNO", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
                     }
 
                     var isFavFocused by remember { mutableStateOf(value = false) }
@@ -313,25 +325,28 @@ fun MainTvScreen(
                             .border(
                                 width = if (isFavFocused) 4.dp else 0.dp,
                                 color = if (isFavFocused) Color.White else Color.Transparent,
-                                shape = ButtonDefaults.shape
-                            )
+                                shape = ButtonDefaults.shape,
+                            ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isFavFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                        ),
                     ) {
                         Icon(
                             if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (channel.isFavorite) Color.Red else Color.Gray
+                            tint = if (channel.isFavorite) Color.Red else if (isFavFocused) Color.Gray else Color.Gray.copy(alpha = 0.5f),
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(if (channel.isFavorite) "QUITAR DE FAVORITOS" else "AÑADIR A FAVORITOS")
+                        Text(if (channel.isFavorite) stringResourceAI("remove_favorite") else stringResourceAI("add_favorite"))
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPlayerDialog = null }) {
-                    Text("CANCELAR", color = Color.Gray)
+                    Text(stringResourceAI("cancel"), color = Color.Gray)
                 }
-            }
+            },
         )
     }
 }

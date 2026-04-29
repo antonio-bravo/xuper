@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,6 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import com.example.xuper.ui.AppLanguage
+import com.example.xuper.ui.LanguageManager
+import com.example.xuper.ui.stringResourceAI
 import com.example.xuper.model.Channel
 import com.example.xuper.model.M3UList
 import com.example.xuper.ui.components.ErrorState
@@ -36,10 +40,14 @@ import com.example.xuper.ui.viewmodel.MainViewModelFactory
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LanguageManager.init(this)
         setContent {
             XuperTheme {
                 XuperApp()
@@ -92,6 +100,7 @@ fun XuperApp() {
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedListName by viewModel.selectedListName.collectAsState()
     var isFullScreen by remember { mutableStateOf(value = false) }
+    var showLanguageDialog by remember { mutableStateOf(value = false) }
     
     var m3uLists by remember {
         val saved = sharedPrefs.getString("m3u_lists", null)
@@ -168,53 +177,63 @@ fun XuperApp() {
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(100.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(16.dp))
-                
+
                 SidebarItem(
                     selected = currentScreen == Screen.TV,
                     onClick = { currentScreen = Screen.TV },
                     icon = Icons.Default.Tv,
-                    label = "TV"
+                    label = stringResourceAI("tv"),
                 )
-                
+
                 SidebarItem(
                     selected = currentScreen == Screen.FAVORITES,
                     onClick = { currentScreen = Screen.FAVORITES },
                     icon = Icons.Default.Favorite,
-                    label = "Favoritos"
+                    label = stringResourceAI("favorites"),
                 )
-                
+
+                Spacer(Modifier.weight(1f))
+
                 SidebarItem(
                     selected = currentScreen == Screen.LISTS,
                     onClick = { currentScreen = Screen.LISTS },
                     icon = Icons.AutoMirrored.Filled.List,
-                    label = "Listas"
+                    label = stringResourceAI("lists"),
                 )
 
                 SidebarItem(
                     selected = currentScreen == Screen.XUPER_CONFIG,
                     onClick = { currentScreen = Screen.XUPER_CONFIG },
                     icon = Icons.Default.Settings,
-                    label = "Xuper"
+                    label = stringResourceAI("xuper"),
                 )
-                
+
                 SidebarItem(
                     selected = false,
                     onClick = { refreshTrigger++ },
                     icon = Icons.Default.Refresh,
-                    label = "Actualizar"
+                    label = stringResourceAI("refresh"),
                 )
-                
+
                 SidebarItem(
                     selected = false,
                     onClick = { filterFocusRequester.requestFocus() },
                     icon = Icons.Default.FilterList,
-                    label = "Filtros"
+                    label = stringResourceAI("filters"),
                 )
-                
-                Spacer(Modifier.weight(1f))
+
+                SidebarItem(
+                    selected = false,
+                    onClick = { showLanguageDialog = true },
+                    icon = Icons.Default.Language,
+                    label = stringResourceAI("language"),
+                )
+
+                Spacer(Modifier.height(16.dp))
             }
 
             Surface(
@@ -258,6 +277,60 @@ fun XuperApp() {
             }
         }
     }
+
+    if (showLanguageDialog) {
+        LanguageSelectionDialog(
+            onDismiss = { showLanguageDialog = false },
+            onLanguageSelected = { lang ->
+                LanguageManager.setLanguage(context, lang)
+                showLanguageDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+fun LanguageSelectionDialog(
+    onDismiss: () -> Unit,
+    onLanguageSelected: (AppLanguage) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResourceAI("language")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppLanguage.entries.forEach { lang ->
+                    var isFocused by remember { mutableStateOf(value = false) }
+                    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, label = "langScale")
+
+                    Button(
+                        onClick = { onLanguageSelected(lang) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isFocused = it.isFocused }
+                            .scale(scale)
+                            .border(
+                                width = if (isFocused) 2.dp else 0.dp,
+                                color = if (isFocused) Color.White else Color.Transparent,
+                                shape = ButtonDefaults.shape,
+                            ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (isFocused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Text(lang.displayName, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResourceAI("cancel"))
+            }
+        },
+    )
 }
 
 @Composable
