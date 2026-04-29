@@ -8,9 +8,9 @@ on:
         required: true
         default: '1.0.0'
 
-#env:
+env:
   # Forzamos Node24 según tu configuración original
-#  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -60,7 +60,7 @@ jobs:
         fi
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2 # Actualizado a v2
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ github.event.inputs.version }}
         name: Xuper v${{ github.event.inputs.version }}
