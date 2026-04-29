@@ -73,6 +73,9 @@ dependencies {
     // OkHttp for networking
     implementation(libs.okhttp)
 
+    // Jsoup for HTML parsing
+    implementation(libs.jsoup)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
