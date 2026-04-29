@@ -263,22 +263,29 @@ fun MainTvScreen(
                     val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
                     Button(
                         onClick = {
+                            val rawUrl = channel.url.trim()
                             val aceId = when {
-                                channel.url.startsWith("acestream://") -> channel.url.substringAfter("acestream://")
-                                channel.url.contains("id=") -> channel.url.substringAfter("id=").substringBefore("&")
+                                rawUrl.startsWith("acestream://") -> rawUrl.substringAfter("acestream://")
+                                rawUrl.contains("id=") -> rawUrl.substringAfter("id=").substringBefore("&")
+                                rawUrl.length == 40 && rawUrl.all { it.isLetterOrDigit() } -> rawUrl
                                 else -> ""
-                            }
+                            }.trim()
+
                             val intent = if (aceId.isNotEmpty()) {
+                                // Specific Acestream Intent
                                 Intent(Intent.ACTION_VIEW).apply {
                                     data = "acestream://$aceId".toUri()
+                                    // Some versions of Acestream prefer these extras
                                     putExtra("id", aceId)
                                     putExtra("content_id", aceId)
+                                    putExtra("org.acestream.EXTRA_CONTENT_ID", aceId)
                                     putExtra("name", channel.name)
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                             } else {
+                                // Generic Video Intent
                                 Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(channel.url.toUri(), "video/*")
+                                    setDataAndType(rawUrl.toUri(), "video/*")
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                             }
@@ -286,11 +293,11 @@ fun MainTvScreen(
                                 context.startActivity(intent)
                             } catch (_: Exception) {
                                 try {
-                                    val chooser = Intent.createChooser(intent, "Abrir con...")
+                                    val chooser = Intent.createChooser(intent, "Open with...")
                                     chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     context.startActivity(chooser)
                                 } catch (_: Exception) {
-                                    // Handle no app case
+                                    // Handle failure
                                 }
                             }
                             showPlayerDialog = null
