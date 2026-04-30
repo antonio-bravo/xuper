@@ -334,6 +334,30 @@ fun MainTvScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(if (channel.isFavorite) stringResourceAI("remove_favorite") else stringResourceAI("add_favorite"))
                     }
+
+                    var isKkFocused by remember { mutableStateOf(value = false) }
+                    val kkScale by animateFloatAsState(if (isKkFocused) 1.05f else 1f, label = "kkScale")
+                    Button(
+                        onClick = {
+                            PlayerUtils.openInAceStreamApp(context, "http://127.0.0.1:6878/ace/getstream?id=1ab443f5b4beb6d586f19e8b25b9f9646cf2ab78")
+                            showPlayerDialog = null
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isKkFocused = it.isFocused }
+                            .scale(kkScale)
+                            .border(
+                                width = if (isKkFocused) 4.dp else 0.dp,
+                                color = if (isKkFocused) Color.White else Color.Transparent,
+                                shape = ButtonDefaults.shape,
+                            ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50),
+                            contentColor = Color.White
+                        ),
+                    ) {
+                        Text("kk", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             },
             dismissButton = {
