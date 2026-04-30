@@ -9,50 +9,83 @@ object PlayerUtils {
     fun launchAceStream(context: Context, name: String, urlOrId: String) {
         val aceId = when {
             urlOrId.startsWith("acestream://") -> urlOrId.substringAfter("acestream://")
-            urlOrId.contains("id=") -> urlOrId.substringAfter("id=").substringBefore("&")
+            urlOrId.contains("id=") -> {
+                urlOrId.substringAfter("id=").substringBefore("&")
+            }
             urlOrId.length == 40 && urlOrId.all { it.isLetterOrDigit() } -> urlOrId
-            else -> urlOrId
+            else -> ""
         }.trim()
 
-        if (aceId.isEmpty()) {
+        // Clean ID (sometimes there are extra chars)
+        val cleanAceId = if (aceId.length >= 40) aceId.take(40) else aceId
+
+        if (cleanAceId.isEmpty()) {
+            if (urlOrId.startsWith("http")) {
+                openAsGenericVideo(context, urlOrId)
+                return
+            }
             Toast.makeText(context, "ID de Acestream no válido", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Try several intent variations
+        // Try several intent variations to ensure AceStream opens correctly
         val intentsToTry = listOf(
-            // 1. Official way with package and mime type
+            // 1. Official URI with Mime Type (Standard)
             Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(Uri.parse("acestream://$aceId"), "application/x-acestream")
+                setDataAndType(Uri.parse("acestream://$cleanAceId"), "application/x-acestream")
                 setPackage("org.acestream.media")
                 putExtra("name", name)
             },
-            // 2. Without mime type but with package
+            // 2. Official URI without Mime Type
             Intent(Intent.ACTION_VIEW).apply {
-                data = Uri.parse("acestream://$aceId")
+                data = Uri.parse("acestream://$cleanAceId")
                 setPackage("org.acestream.media")
+                putExtra("name", name)
+                putExtra("org.acestream.media.EXTRA_CONTENT_ID", cleanAceId)
+            },
+            // 3. Using specific extras for content ID (Some TV versions)
+            Intent(Intent.ACTION_VIEW).apply {
+                setPackage("org.acestream.media")
+                putExtra("content_id", cleanAceId)
                 putExtra("name", name)
             },
-            // 3. Generic acestream URI
-            Intent(Intent.ACTION_VIEW, Uri.parse("acestream://$aceId")),
-            // 4. Using content_id extra
+            // 4. Using "id" extra
             Intent(Intent.ACTION_VIEW).apply {
                 setPackage("org.acestream.media")
-                putExtra("content_id", aceId)
-                putExtra("name", name)
-            }
+                putExtra("id", cleanAceId)
+            },
+            // 5. Generic system-wide URI
+            Intent(Intent.ACTION_VIEW, Uri.parse("acestream://$cleanAceId"))
         )
 
+        var started = false
         for (intent in intentsToTry) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
-                return
+                started = true
+                break
             } catch (e: Exception) {
                 continue
             }
         }
 
-        Toast.makeText(context, "No se pudo abrir Ace Stream. ¿Está instalada?", Toast.LENGTH_SHORT).show()
+        if (!started) {
+            Toast.makeText(context, "No se pudo abrir Ace Stream. ¿Está instalada?", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openAsGenericVideo(context: Context, url: String) {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(Uri.parse(url), "video/*")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            val chooser = Intent.createChooser(intent, "Open with...")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+        }
     }
 }
