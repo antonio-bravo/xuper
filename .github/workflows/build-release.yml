@@ -57,7 +57,7 @@ jobs:
         RELEASE_APK=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
         if [ -f "$RELEASE_APK" ]; then
           echo "APK de release encontrado en $RELEASE_APK"
-          cp "$RELEASE_APK" xuper-v${{ github.event.inputs.version }}.apk
+          cp "$RELEASE_APK" xuper-v${{ env.VERSION }}.apk
         else
           echo "Error: No se encontró el APK de release. Revisa el log de Gradle."
           exit 1
@@ -67,7 +67,7 @@ jobs:
         DEBUG_APK=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
         if [ -f "$DEBUG_APK" ]; then
           echo "APK debug encontrado en $DEBUG_APK"
-          cp "$DEBUG_APK" xuper-v${{ github.event.inputs.version }}_debug.apk
+          cp "$DEBUG_APK" xuper-v${{ env.VERSION }}_debug.apk
         else
           echo "Warning: No se encontró el APK debug."
         fi
@@ -75,11 +75,11 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ github.event.inputs.version }}
-        name: Xuper v${{ github.event.inputs.version }}
+        tag_name: v{{ env.VERSION }}
+        name: Xuper v${{ env.VERSION }}
         files: |
-          xuper-v${{ github.event.inputs.version }}.apk
-          xuper-v${{ github.event.inputs.version }}_debug.apk
+          xuper-v${{ env.VERSION }}.apk
+          xuper-v${{ env.VERSION }}_debug.apk
         generate_release_notes: true
         draft: false
         prerelease: false
