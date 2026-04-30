@@ -31,15 +31,36 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
+import com.example.xuper.util.PlayerUtils
+
 @Composable
 fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
     if (url.contains("127.0.0.1:6878") || url.startsWith("acestream://")) {
+        val context = LocalContext.current
         Box(modifier = modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
                 Spacer(Modifier.height(16.dp))
                 Text("Contenido Acestream", color = Color.White, style = MaterialTheme.typography.headlineSmall)
                 Text("Usa el REPRODUCTOR EXTERNO para este canal", color = Color.Gray)
+                Spacer(Modifier.height(24.dp))
+                
+                var isFocused by remember { mutableStateOf(value = false) }
+                val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "btnScale")
+                
+                Button(
+                    onClick = { PlayerUtils.launchAceStream(context, "Acestream", url) },
+                    modifier = Modifier
+                        .onFocusChanged { isFocused = it.isFocused }
+                        .scale(scale)
+                        .border(
+                            width = if (isFocused) 2.dp else 0.dp,
+                            color = if (isFocused) Color.White else Color.Transparent,
+                            shape = ButtonDefaults.shape
+                        )
+                ) {
+                    Text("ABRIR EN ACE STREAM")
+                }
             }
         }
     } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || (!url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts")))) {

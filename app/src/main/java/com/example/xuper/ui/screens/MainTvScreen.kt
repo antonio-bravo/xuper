@@ -28,6 +28,8 @@ import com.example.xuper.ui.stringResourceAI
 import com.example.xuper.ui.components.ChannelList
 import com.example.xuper.ui.components.UniversalPlayer
 
+import com.example.xuper.util.PlayerUtils
+
 @Composable
 fun MainTvScreen(
     channels: List<Channel>,
@@ -264,40 +266,25 @@ fun MainTvScreen(
                     Button(
                         onClick = {
                             val rawUrl = channel.url.trim()
-                            val aceId = when {
-                                rawUrl.startsWith("acestream://") -> rawUrl.substringAfter("acestream://")
-                                rawUrl.contains("id=") -> rawUrl.substringAfter("id=").substringBefore("&")
-                                rawUrl.length == 40 && rawUrl.all { it.isLetterOrDigit() } -> rawUrl
-                                else -> ""
-                            }.trim()
-
-                            val intent = if (aceId.isNotEmpty()) {
-                                // Specific Acestream Intent
-                                Intent(Intent.ACTION_VIEW).apply {
-                                    data = "acestream://$aceId".toUri()
-                                    // Some versions of Acestream prefer these extras
-                                    putExtra("id", aceId)
-                                    putExtra("content_id", aceId)
-                                    putExtra("org.acestream.EXTRA_CONTENT_ID", aceId)
-                                    putExtra("name", channel.name)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
+                            val isAce = rawUrl.startsWith("acestream://") || (rawUrl.length == 40 && rawUrl.all { it.isLetterOrDigit() }) || rawUrl.contains("id=")
+                            
+                            if (isAce) {
+                                PlayerUtils.launchAceStream(context, channel.name, rawUrl)
                             } else {
-                                // Generic Video Intent
-                                Intent(Intent.ACTION_VIEW).apply {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
                                     setDataAndType(rawUrl.toUri(), "video/*")
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
-                            }
-                            try {
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
                                 try {
-                                    val chooser = Intent.createChooser(intent, "Open with...")
-                                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    context.startActivity(chooser)
+                                    context.startActivity(intent)
                                 } catch (_: Exception) {
-                                    // Handle failure
+                                    try {
+                                        val chooser = Intent.createChooser(intent, "Open with...")
+                                        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        context.startActivity(chooser)
+                                    } catch (_: Exception) {
+                                        // Handle failure
+                                    }
                                 }
                             }
                             showPlayerDialog = null

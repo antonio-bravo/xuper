@@ -30,6 +30,7 @@ import com.example.xuper.model.M3UList
 import com.example.xuper.ui.components.ErrorState
 import com.example.xuper.ui.components.SidebarItem
 import com.example.xuper.ui.components.UniversalPlayer
+import com.example.xuper.ui.screens.ArenaScreen
 import com.example.xuper.ui.screens.FavoritesScreen
 import com.example.xuper.ui.screens.ListsManagementScreen
 import com.example.xuper.ui.screens.MainTvScreen
@@ -75,7 +76,7 @@ fun XuperTheme(content: @Composable () -> Unit) {
 }
 
 enum class Screen {
-    TV, LISTS, FAVORITES, XUPER_CONFIG
+    TV, LISTS, FAVORITES, ARENA, XUPER_CONFIG
 }
 
 @Composable
@@ -196,6 +197,13 @@ fun XuperApp() {
                     label = stringResourceAI("favorites"),
                 )
 
+                SidebarItem(
+                    selected = currentScreen == Screen.ARENA,
+                    onClick = { currentScreen = Screen.ARENA },
+                    icon = Icons.Default.SportsSoccer,
+                    label = "Arena",
+                )
+
                 Spacer(Modifier.weight(1f))
 
                 SidebarItem(
@@ -272,6 +280,7 @@ fun XuperApp() {
                         onToggleFavorite = { toggleFavorite(it) },
                         onChannelSelected = onPlayChannel
                     )
+                    Screen.ARENA -> ArenaScreen()
                     Screen.XUPER_CONFIG -> XuperConfigScreen()
                 }
             }

@@ -10,16 +10,17 @@ import org.jsoup.Jsoup
 
 object ArenaParser {
     private val client = OkHttpClient()
-    private val sources = listOf(
+    val sources = listOf(
         "http://www.arena4viewer.in/misguia2.php",
         "http://www.arena4viewer.pl/misguia2.php",
         "https://www.arena4viewer.co.in/misguia2.php",
         "https://www.arena4viewer.cool/misguia2.php",
     )
 
-    suspend fun fetchArenaData(): Pair<List<ArenaEvent>, Map<String, String>> = withContext(Dispatchers.IO) {
+    suspend fun fetchArenaData(sourceUrl: String? = null): Pair<List<ArenaEvent>, Map<String, String>> = withContext(Dispatchers.IO) {
         var html = ""
-        for (url in sources) {
+        val urlsToTry = if (sourceUrl != null) listOf(sourceUrl) else sources
+        for (url in urlsToTry) {
             try {
                 val request = Request.Builder().url(url).build()
                 val response = client.newCall(request).execute()
