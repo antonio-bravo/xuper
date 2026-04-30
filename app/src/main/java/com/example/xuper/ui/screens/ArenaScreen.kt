@@ -5,10 +5,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
@@ -95,11 +93,12 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
             shape = MaterialTheme.shapes.extraSmall
         ) {
             Row(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Fecha / Hora", modifier = Modifier.weight(0.2f), fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Evento / Competición", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Hora", modifier = Modifier.weight(0.12f), fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Deporte", modifier = Modifier.weight(0.15f), fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Evento", modifier = Modifier.weight(0.43f), fontWeight = FontWeight.Bold, color = Color.White)
                 Text("Canales", modifier = Modifier.weight(0.3f), fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
             }
         }
@@ -142,82 +141,83 @@ fun ArenaEventRow(event: ArenaEvent, streams: Map<String, String>, onChannelClic
                 width = if (isFocused) 2.dp else 0.dp,
                 color = if (isFocused) Color.White else Color.Transparent,
                 shape = MaterialTheme.shapes.extraSmall
-            )
-            .clickable { 
-                // Al hacer click en la fila, intentamos abrir el primer canal si existe
-                event.channels.firstOrNull()?.let { firstChannel ->
-                    streams[firstChannel]?.let { url -> onChannelClick(firstChannel, url) }
-                }
-            },
+            ),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         shape = MaterialTheme.shapes.extraSmall
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // FECHA / HORA
-            Column(modifier = Modifier.weight(0.2f)) {
-                Text(
-                    text = event.time,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = event.sport,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-            }
+            // HORA
+            Text(
+                text = event.time,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(0.12f)
+            )
+
+            // DEPORTE
+            Text(
+                text = event.sport,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                modifier = Modifier.weight(0.15f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
             // EVENTO / COMPETICION
-            Column(modifier = Modifier.weight(0.5f)) {
+            Column(modifier = Modifier.weight(0.43f)) {
                 Text(
                     text = event.title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = event.competition,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (event.competition.isNotEmpty()) {
+                    Text(
+                        text = event.competition,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
-            // CANALES
-            LazyRow(
+            // CANALES - Usando Row en lugar de LazyRow para evitar problemas de scroll/foco
+            Row(
                 modifier = Modifier.weight(0.3f),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items(event.channels) { channelName ->
+                // Solo mostramos los primeros 4 canales para que quepan bien en una línea
+                event.channels.take(4).forEach { channelName ->
                     val url = streams[channelName]
                     if (url != null) {
                         var isChanFocused by remember { mutableStateOf(value = false) }
                         val chanScale by animateFloatAsState(if (isChanFocused) 1.2f else 1f, label = "chanScale")
-                        
+
                         IconButton(
                             onClick = { onChannelClick(channelName, url) },
                             modifier = Modifier
-                                .padding(horizontal = 4.dp)
+                                .padding(horizontal = 2.dp)
                                 .onFocusChanged { isChanFocused = it.isFocused }
                                 .scale(chanScale)
                                 .background(
                                     if (isChanFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                                     shape = MaterialTheme.shapes.small
                                 )
-                                .size(40.dp)
+                                .size(32.dp)
                         ) {
                             Icon(
                                 Icons.Default.PlayArrow,
                                 contentDescription = channelName,
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
