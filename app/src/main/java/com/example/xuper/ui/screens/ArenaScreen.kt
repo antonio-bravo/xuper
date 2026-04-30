@@ -65,6 +65,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 
     if (showUrlDialog) {
         val displayUrl = PlayerUtils.formatAceStreamHttpUrl(pendingUrl)
+        val getStreamUrl = PlayerUtils.formatAceStreamGetStreamUrl(pendingUrl)
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
             title = { Text("¿Cómo quieres abrir el canal?") },
@@ -102,24 +103,36 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                 }
             },
             confirmButton = {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            showUrlDialog = false
-                            internalPlayerUrl = displayUrl
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Interno")
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                showUrlDialog = false
+                                internalPlayerUrl = displayUrl
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Interno")
+                        }
+                        Button(
+                            onClick = {
+                                showUrlDialog = false
+                                PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Externo")
+                        }
                     }
                     Button(
                         onClick = {
                             showUrlDialog = false
-                            PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
+                            PlayerUtils.openInAceStreamApp(context, getStreamUrl)
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
-                        Text("Externo")
+                        Text("Abrir con App Ace Stream (Intent)")
                     }
                 }
             },

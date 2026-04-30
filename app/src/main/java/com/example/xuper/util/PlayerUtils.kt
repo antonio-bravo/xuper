@@ -88,6 +88,38 @@ object PlayerUtils {
         }
     }
 
+    fun formatAceStreamGetStreamUrl(urlOrId: String): String {
+        val id = getAceId(urlOrId)
+        return if (id.isNotEmpty()) {
+            "http://127.0.0.1:6878/ace/getstream?id=$id"
+        } else {
+            urlOrId
+        }
+    }
+
+    fun openInAceStreamApp(context: Context, url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(Uri.parse(url), "application/x-mpegurl")
+                setPackage("org.acestream.media")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Ace Stream no está instalado o no respondió", Toast.LENGTH_SHORT).show()
+            // Fallback to generic view without package if specific one fails
+            try {
+                val genericIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(Uri.parse(url), "application/x-mpegurl")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(genericIntent)
+            } catch (e2: Exception) {
+                Toast.makeText(context, "Error al abrir el reproductor", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun openAsGenericVideo(context: Context, url: String) {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(Uri.parse(url), "video/*")
