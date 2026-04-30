@@ -29,7 +29,7 @@ jobs:
       run: |
         # Si el input está vacío, generamos la fecha ISO UTC
         if [ -z "${{ github.event.inputs.version }}" ]; then
-          V_AUTO="1.0.$(date -u +'%Y%m%d_%H%M%S')"
+          V_AUTO="1.$(date -u +'%Y%m%d.%H%M%S')"
           echo "VERSION=$V_AUTO" >> $GITHUB_ENV
         else
           echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
