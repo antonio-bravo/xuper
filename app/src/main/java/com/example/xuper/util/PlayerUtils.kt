@@ -7,17 +7,7 @@ import android.widget.Toast
 
 object PlayerUtils {
     fun launchAceStream(context: Context, name: String, urlOrId: String) {
-        val aceId = when {
-            urlOrId.startsWith("acestream://") -> urlOrId.substringAfter("acestream://")
-            urlOrId.contains("id=") -> {
-                urlOrId.substringAfter("id=").substringBefore("&")
-            }
-            urlOrId.length == 40 && urlOrId.all { it.isLetterOrDigit() } -> urlOrId
-            else -> ""
-        }.trim()
-
-        // Clean ID (sometimes there are extra chars)
-        val cleanAceId = if (aceId.length >= 40) aceId.take(40) else aceId
+        val cleanAceId = getAceId(urlOrId)
 
         if (cleanAceId.isEmpty()) {
             if (urlOrId.startsWith("http")) {
@@ -72,6 +62,29 @@ object PlayerUtils {
 
         if (!started) {
             Toast.makeText(context, "No se pudo abrir Ace Stream. ¿Está instalada?", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun getAceId(urlOrId: String): String {
+        val aceId = when {
+            urlOrId.startsWith("acestream://") -> urlOrId.substringAfter("acestream://")
+            urlOrId.contains("id=") -> {
+                urlOrId.substringAfter("id=").substringBefore("&")
+            }
+            urlOrId.length == 40 && urlOrId.all { it.isLetterOrDigit() } -> urlOrId
+            else -> ""
+        }.trim()
+
+        // Clean ID (sometimes there are extra chars)
+        return if (aceId.length >= 40) aceId.take(40) else aceId
+    }
+
+    fun formatAceStreamHttpUrl(urlOrId: String): String {
+        val id = getAceId(urlOrId)
+        return if (id.isNotEmpty()) {
+            "http://127.0.0.1:6878/ace/manifest.m3u8?id=$id"
+        } else {
+            urlOrId
         }
     }
 

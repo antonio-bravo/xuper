@@ -35,7 +35,7 @@ import com.example.xuper.util.PlayerUtils
 
 @Composable
 fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
-    if (url.contains("127.0.0.1:6878") || url.startsWith("acestream://")) {
+    if ((url.contains("127.0.0.1:6878") && !url.contains("manifest.m3u8")) || url.startsWith("acestream://")) {
         val context = LocalContext.current
         Box(modifier = modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
