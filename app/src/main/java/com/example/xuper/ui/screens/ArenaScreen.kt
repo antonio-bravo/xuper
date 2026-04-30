@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -117,8 +118,12 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         Button(
                             onClick = {
                                 showUrlDialog = false
-                                val getStreamUrlDynamic = PlayerUtils.formatAceStreamGetStreamUrl(pendingUrl)
-                                PlayerUtils.openInAceStreamApp(context, getStreamUrlDynamic)
+                                val aceId = PlayerUtils.getAceId(pendingUrl)
+                                if (aceId.isNotEmpty()) {
+                                    PlayerUtils.openInAceStreamApp(context, "http://127.0.0.1:6878/ace/getstream?id=$aceId")
+                                } else {
+                                    PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
+                                }
                             },
                             modifier = Modifier.weight(1f)
                         ) {
@@ -183,6 +188,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         modifier = Modifier
                             .onFocusChanged { isFocused = it.isFocused }
                             .scale(scale)
+                            .focusable() // Asegurar que sea enfocable
                             .border(
                                 width = if (isFocused) 2.dp else 0.dp,
                                 color = if (isFocused) Color.White else Color.Transparent,
@@ -257,6 +263,7 @@ fun ArenaEventRow(event: ArenaEvent, streams: Map<String, String>, onChannelClic
         modifier = Modifier
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
+            .focusable() // Hacer que la fila entera sea enfocable para el mando
             .border(
                 width = if (isFocused) 2.dp else 0.dp,
                 color = if (isFocused) Color.White else Color.Transparent,
@@ -383,6 +390,7 @@ fun ArenaCloneScreen(viewModel: ArenaViewModel = viewModel()) {
                         modifier = Modifier
                             .onFocusChanged { isFocused = it.isFocused }
                             .scale(scale)
+                            .focusable() // Asegurar que sea enfocable
                             .border(
                                 width = if (isFocused) 2.dp else 0.dp,
                                 color = if (isFocused) Color.White else Color.Transparent,

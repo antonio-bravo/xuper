@@ -266,12 +266,10 @@ fun MainTvScreen(
                     Button(
                         onClick = {
                             val rawUrl = channel.url.trim()
-                            val isAce = rawUrl.startsWith("acestream://") || (rawUrl.length == 40 && rawUrl.all { it.isLetterOrDigit() }) || rawUrl.contains("id=")
+                            val aceId = PlayerUtils.getAceId(rawUrl)
                             
-                            if (isAce) {
-                                // PlayerUtils.launchAceStream(context, channel.name, rawUrl)
-                                val getStreamUrl = PlayerUtils.formatAceStreamGetStreamUrl(rawUrl)
-                                PlayerUtils.openInAceStreamApp(context, getStreamUrl)
+                            if (aceId.isNotEmpty()) {
+                                PlayerUtils.openInAceStreamApp(context, "http://127.0.0.1:6878/ace/getstream?id=$aceId")
                             } else {
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
                                     setDataAndType(rawUrl.toUri(), "video/*")
