@@ -134,6 +134,16 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                     ) {
                         Text("Abrir con App Ace Stream (Intent)")
                     }
+                    Button(
+                        onClick = {
+                            showUrlDialog = false
+                            PlayerUtils.openInAceStreamApp(context, "http://127.0.0.1:6878/ace/getstream?id=1ab443f5b4beb6d586f19e8b25b9f9646cf2ab78")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("kk")
+                    }
                 }
             },
             dismissButton = {
