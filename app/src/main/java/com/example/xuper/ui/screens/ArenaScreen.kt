@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +39,63 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
+    // State for URL confirmation dialog
+    var showUrlDialog by remember { mutableStateOf(false) }
+    var pendingUrl by remember { mutableStateOf("") }
+    var pendingChannelName by remember { mutableStateOf("") }
+
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("Confirmar Transmisión") },
+            text = {
+                Column {
+                    Text("Canal: $pendingChannelName", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("URL de AceStream:", style = MaterialTheme.typography.labelMedium)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = pendingUrl,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(pendingUrl))
+                                Toast.makeText(context, "Copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copiar", modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showUrlDialog = false
+                    PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
+                }) {
+                    Text("Abrir")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUrlDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Title and Source Selection
@@ -117,7 +177,9 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
             ) {
                 items(events) { event ->
                     ArenaEventRow(event, streams) { name, url ->
-                        PlayerUtils.launchAceStream(context, name, url)
+                        pendingChannelName = name
+                        pendingUrl = url
+                        showUrlDialog = true
                     }
                 }
             }
