@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (dejar vacío para usar 1.0.YYYYMMDD_HHmmss)'
+        description: 'Version (dejar vacío para usar 1.YYYYMMDD.HHmmss)'
         required: false
         default: ''        # description: 'Version (ex. 1.0.0)'
         # required: true
@@ -75,7 +75,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v{{ env.VERSION }}
+        tag_name: v${{ env.VERSION }}
         name: Xuper v${{ env.VERSION }}
         files: |
           xuper-v${{ env.VERSION }}.apk
