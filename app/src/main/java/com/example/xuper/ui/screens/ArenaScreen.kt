@@ -117,7 +117,8 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         Button(
                             onClick = {
                                 showUrlDialog = false
-                                PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
+                                val getStreamUrlDynamic = PlayerUtils.formatAceStreamGetStreamUrl(pendingUrl)
+                                PlayerUtils.openInAceStreamApp(context, getStreamUrlDynamic)
                             },
                             modifier = Modifier.weight(1f)
                         ) {

@@ -269,7 +269,9 @@ fun MainTvScreen(
                             val isAce = rawUrl.startsWith("acestream://") || (rawUrl.length == 40 && rawUrl.all { it.isLetterOrDigit() }) || rawUrl.contains("id=")
                             
                             if (isAce) {
-                                PlayerUtils.launchAceStream(context, channel.name, rawUrl)
+                                // PlayerUtils.launchAceStream(context, channel.name, rawUrl)
+                                val getStreamUrl = PlayerUtils.formatAceStreamGetStreamUrl(rawUrl)
+                                PlayerUtils.openInAceStreamApp(context, getStreamUrl)
                             } else {
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
                                     setDataAndType(rawUrl.toUri(), "video/*")
