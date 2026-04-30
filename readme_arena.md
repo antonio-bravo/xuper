@@ -267,3 +267,86 @@ Los streams se cargan desde:
 ### ⚠️ Nota importante
 
 Esta app accede a contenido que puede violar derechos de autor. Los servidores y URLs cambian frecuentemente para evadir bloqueos. El código está ofuscado para proteger la lógica de negocio.
+
+
+
+📡 Cómo funciona Arena4Viewer
+1. Lista de Canales
+La app obtiene los canales desde servidores web externos. Los URLs principales están hardcodeados en los recursos:
+
+Dominio	URL
+Principal	http://www.arena4viewer.in/misguia2.php
+Alternativo 1	http://www.arena4viewer.pl/misguia2.php
+Alternativo 2	https://www.arena4viewer.co.in/misguia2.php
+Alternativo 3	https://www.arena4viewer.cool/misguia2.php
+Alternativo 4	https://www.arena4viewer.lv/misguia2.php
+Alternativo 5	https://www.arena4viewer.top/misguia2.php
+Proceso:
+
+La app descarga un archivo HTML desde uno de estos servidores
+Extrae los streams de un div oculto: &lt;div class"streams" style="display:none;"&gt;
+Los parsea y los guarda en memoria (miStreams)
+Soporta 3 tipos de streams:
+ACESTREAM (acestream://)
+SOPCAST (sop://)
+WWW (HTTP/HTTPS directo)
+2. Parrilla de Eventos (Agenda)
+La agenda se obtiene de la misma fuente (misguia2.php):
+
+Proceso:
+
+Descarga el HTML completo del servidor
+
+Extrae una tabla HTML (&lt;table&gt;...&lt;/table&gt;)
+
+Parsea cada fila (&lt;tr&gt;) extrayendo:
+
+Fecha/Hora (ej: 29/04/2026 20:00)
+Deporte (Fútbol, Tenis, Motos, etc.)
+Evento/Encuentro (ej: "Real Madrid vs Barcelona")
+Competición (Liga Champions, ATP, etc.)
+Canales disponibles (AV1, AV2, AV3...)
+Los guarda en un archivo local (a4v.lic) codificado en Base64
+
+Los carga desde caché local o preferencias compartidas
+
+Pero cuando he descargado el html que devuelven esas URL en ninguna de ellas veo el id para acestream, solo está ahi la agenda, me puedes decir de donde y como saca las id para acestream
+
+
+Gemini
+Responding with 3 Flash Preview
+Tienes razón en que, al abrir esas URLs en un navegador convencional, normalmente solo verás la tabla de la agenda (el "encuentro", la "hora" y el "canal" tipo AV1, AV2, etc.). La "magia" de cómo la app obtiene los Content IDs (los hashes de Acestream) ocurre detrás de escena mediante varios mecanismos que la app tiene programados.
+
+Basado en el análisis del código (como se menciona en el readme_arena.md y los archivos de recursos), aquí te explico de dónde salen realmente esos IDs:
+
+1. El User-Agent es la clave
+El servidor que aloja misguia2.php detecta quién está pidiendo la información. Si entras con un navegador (Chrome, Firefox), el servidor te entrega la versión "limpia" (solo texto).
+
+Sin embargo, la app está programada en AVActivity.java para enviar un User-Agent específico (probablemente algo como Arena4Viewer/4.x) y ciertos headers. Cuando el servidor detecta que la petición viene de la app oficial, inyecta en el HTML ese bloque oculto que mencionaste:
+
+html
+<div class="streams" style="display:none;">
+    AV1|hash_acestream_1|
+    AV2|hash_acestream_2|
+    ...
+</div>
+Al descargar el HTML manualmente, no lo ves porque el servidor te está "filtrando".
+
+2. La variable livelink (Fuente Secundaria)
+En el archivo strings.xml, hay una variable crítica:
+
+xml
+<string name="livelink">http://arenav.bget.ru/</string>
+La app utiliza esta URL (o similares como las de livefootballol.me) como un espejo de IDs. Muchos de estos sitios devuelven un archivo de texto plano o un JSON simple que mapea el nombre del canal con su hash actual.
+
+Proceso: La app descarga el contenido de arenav.bget.ru, busca la línea que empieza por AV1 y extrae el hash que viene a continuación.
+3. El proceso de "Mapeo"
+La app realiza un cruce de datos en memoria:
+
+De la Agenda (misguia2.php): Obtiene que el partido "X" se emite en el canal AV2.
+De los Streams (Div oculto o livelink): Busca el ID asociado a AV2 (ej: 834f...).
+Ejecución: Concatena el prefijo acestream:// con el hash obtenido y lanza un Intent al reproductor (Acestream Engine).
+4. Ofuscación y Protección
+Si te fijas en el código de AVActivity.java (mencionado en el contexto), los métodos que manejan estos strings suelen usar Base64 o pequeñas rutinas de cifrado para que, si alguien intercepta el tráfico, no vea los hashes directamente.
+
+Resumen: Si quieres ver los IDs manualmente como lo hace la app, tendrías que simular la petición web usando una herramienta como Postman o cURL, configurando el User-Agent exacto que usa la aplicación, o consultar directamente las fuentes de respaldo como http://arenav.bget.ru/ que suelen estar menos protegidas.

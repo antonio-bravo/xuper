@@ -20,13 +20,24 @@ object ArenaParser {
     suspend fun fetchArenaData(sourceUrl: String? = null): Pair<List<ArenaEvent>, Map<String, String>> = withContext(Dispatchers.IO) {
         var html = ""
         val urlsToTry = if (sourceUrl != null) listOf(sourceUrl) else sources
+        
+        // Simular el User-Agent y headers que usa la app oficial para que el servidor inyecte los streams
+        val headers = mapOf(
+            "User-Agent" to "Arena4Viewer/4.0",
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Connection" to "keep-alive"
+        )
+
         for (url in urlsToTry) {
             try {
-                val request = Request.Builder().url(url).build()
-                val response = client.newCall(request).execute()
+                val requestBuilder = Request.Builder().url(url)
+                headers.forEach { (name, value) -> requestBuilder.addHeader(name, value) }
+                
+                val response = client.newCall(requestBuilder.build()).execute()
                 if (response.isSuccessful) {
                     html = response.body?.string() ?: ""
-                    if (html.isNotEmpty()) break
+                    // Verificamos si realmente contiene la agenda o al menos la estructura básica
+                    if (html.contains("<table") || html.contains("streams")) break
                 }
             } catch (e: Exception) {
                 continue
@@ -40,14 +51,35 @@ object ArenaParser {
         // 1. Parse Streams (Hidden div)
         val streamsMap = mutableMapOf<String, String>()
         val streamsDiv = doc.select("div.streams").firstOrNull()
-        streamsDiv?.let {
-            val content = it.text()
-            // Typical format: NAME|URL;NAME|URL
-            content.split(";").forEach { entry ->
-                val parts = entry.split("|")
-                if (parts.size >= 2) {
-                    streamsMap[parts[0].trim()] = parts[1].trim()
+        
+        if (streamsDiv != null) {
+            val content = streamsDiv.text()
+            // El formato suele ser AV1|hash|AV2|hash|... o separado por punto y coma
+            // Intentamos ambos delimitadores comunes
+            val parts = if (content.contains(";")) {
+                content.split(";")
+            } else {
+                content.split("|").chunked(2).map { it.joinToString("|") }
+            }
+
+            parts.forEach { entry ->
+                val subParts = entry.split("|")
+                if (subParts.size >= 2) {
+                    val name = subParts[0].trim()
+                    val url = subParts[1].trim()
+                    if (name.isNotEmpty() && url.isNotEmpty()) {
+                        streamsMap[name] = url
+                    }
                 }
+            }
+        }
+
+        // Si el div oculto falló, intentamos buscar en scripts o comentarios (fallback común)
+        if (streamsMap.isEmpty()) {
+            val scriptContent = doc.select("script").text()
+            val regex = Regex("(AV\\d+)\\|([a-fA-F0-9]{40})")
+            regex.findAll(html + scriptContent).forEach { match ->
+                streamsMap[match.groupValues[1]] = match.groupValues[2]
             }
         }
 
