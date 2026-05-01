@@ -66,17 +66,28 @@ object PlayerUtils {
     }
 
     fun getAceId(urlOrId: String): String {
-        val aceId = when {
-            urlOrId.startsWith("acestream://") -> urlOrId.substringAfter("acestream://")
-            urlOrId.contains("id=") -> {
-                urlOrId.substringAfter("id=").substringBefore("&")
-            }
-            urlOrId.length == 40 && urlOrId.all { it.isLetterOrDigit() } -> urlOrId
-            else -> ""
-        }.trim()
+        if (urlOrId.isEmpty()) return ""
+        
+        // Primero intentamos extraerlo de parámetros id=
+        if (urlOrId.contains("id=")) {
+            val extracted = urlOrId.substringAfter("id=").substringBefore("&").substringBefore("/")
+            if (extracted.length >= 40) return extracted.take(40)
+        }
 
-        // Clean ID (sometimes there are extra chars)
-        return if (aceId.length >= 40) aceId.take(40) else aceId
+        // Si empieza por acestream://
+        if (urlOrId.startsWith("acestream://")) {
+            val extracted = urlOrId.substringAfter("acestream://").substringBefore("/").substringBefore("?")
+            if (extracted.length >= 40) return extracted.take(40)
+        }
+
+        // Búsqueda por Regex de 40 caracteres hexadecimales (el formato estándar de AceID)
+        val regex = Regex("[a-fA-F0-9]{40}")
+        val match = regex.find(urlOrId)
+        if (match != null) {
+            return match.value
+        }
+
+        return ""
     }
 
     fun formatAceStreamHttpUrl(urlOrId: String): String {
@@ -106,17 +117,7 @@ object PlayerUtils {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "Ace Stream no está instalado o no respondió", Toast.LENGTH_SHORT).show()
-            // Fallback to generic view without package if specific one fails
-            try {
-                val genericIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(Uri.parse(url), "application/x-mpegurl")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(genericIntent)
-            } catch (e2: Exception) {
-                Toast.makeText(context, "Error al abrir el reproductor", Toast.LENGTH_SHORT).show()
-            }
+            Toast.makeText(context, "Ace Stream no está instalado", Toast.LENGTH_SHORT).show()
         }
     }
 
