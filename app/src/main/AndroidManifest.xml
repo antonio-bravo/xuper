@@ -4,6 +4,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <queries>
+        <package android:name="org.acestream.media" />
+    </queries>
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />

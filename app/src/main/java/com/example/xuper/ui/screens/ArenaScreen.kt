@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,6 +51,58 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     var pendingChannelName by remember { mutableStateOf("") }
     var internalPlayerUrl by remember { mutableStateOf<String?>(null) }
 
+    // State for channel selection dialog
+    var showChannelPicker by remember { mutableStateOf(false) }
+    var selectedEventForPicker by remember { mutableStateOf<ArenaEvent?>(null) }
+
+    if (showChannelPicker && selectedEventForPicker != null) {
+        AlertDialog(
+            onDismissRequest = { showChannelPicker = false },
+            title = { Text("Seleccionar Canal") },
+            text = {
+                Column {
+                    Text(selectedEventForPicker!!.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                        items(selectedEventForPicker!!.channels) { channelName ->
+                            val url = streams[channelName]
+                            if (url != null) {
+                                val aceId = PlayerUtils.getAceId(url)
+                                Card(
+                                    onClick = {
+                                        pendingChannelName = channelName
+                                        pendingUrl = url
+                                        showChannelPicker = false
+                                        showUrlDialog = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(channelName, fontWeight = FontWeight.Bold)
+                                        }
+                                        if (aceId.isNotEmpty()) {
+                                            Text("AceID: $aceId", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showChannelPicker = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     if (internalPlayerUrl != null) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             UniversalPlayer(url = internalPlayerUrl!!)
@@ -73,6 +126,10 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
             text = {
                 Column {
                     Text("Canal: $pendingChannelName", fontWeight = FontWeight.Bold)
+                    val aceId = PlayerUtils.getAceId(pendingUrl)
+                    if (aceId.isNotEmpty()) {
+                        Text("AceID: $aceId", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
                     Spacer(Modifier.height(12.dp))
                     Text("Link a abrir:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     Surface(
@@ -240,11 +297,17 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                 contentPadding = PaddingValues(bottom = 32.dp)
             ) {
                 items(events) { event ->
-                    ArenaEventRow(event, streams) { name, url ->
-                        pendingChannelName = name
-                        pendingUrl = url
-                        showUrlDialog = true
-                    }
+                    ArenaEventRow(event, streams, 
+                        onRowClick = {
+                            selectedEventForPicker = it
+                            showChannelPicker = true
+                        },
+                        onChannelClick = { name, url ->
+                            pendingChannelName = name
+                            pendingUrl = url
+                            showUrlDialog = true
+                        }
+                    )
                 }
             }
         }
@@ -252,7 +315,12 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 }
 
 @Composable
-fun ArenaEventRow(event: ArenaEvent, streams: Map<String, String>, onChannelClick: (String, String) -> Unit) {
+fun ArenaEventRow(
+    event: ArenaEvent, 
+    streams: Map<String, String>, 
+    onRowClick: (ArenaEvent) -> Unit,
+    onChannelClick: (String, String) -> Unit
+) {
     var isFocused by remember { mutableStateOf(value = false) }
     val backgroundColor by animateColorAsState(
         if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -264,6 +332,7 @@ fun ArenaEventRow(event: ArenaEvent, streams: Map<String, String>, onChannelClic
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
             .focusable() // Hacer que la fila entera sea enfocable para el mando
+            .clickable { onRowClick(event) }
             .border(
                 width = if (isFocused) 2.dp else 0.dp,
                 color = if (isFocused) Color.White else Color.Transparent,
@@ -311,6 +380,16 @@ fun ArenaEventRow(event: ArenaEvent, streams: Map<String, String>, onChannelClic
                         color = Color.Gray,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // Mostrar el primer AceID encontrado para este evento
+                val firstChannelWithStream = event.channels.firstOrNull { streams.containsKey(it) }
+                val firstHash = firstChannelWithStream?.let { streams[it] }?.let { PlayerUtils.getAceId(it) }
+                if (!firstHash.isNullOrEmpty()) {
+                    Text(
+                        text = "ID: ${firstHash.take(10)}...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                     )
                 }
             }
