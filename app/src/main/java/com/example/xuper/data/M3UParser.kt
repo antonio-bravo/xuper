@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 object M3UParser {
     private val client = OkHttpClient()
@@ -14,11 +15,47 @@ object M3UParser {
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
             val content = response.body?.string() ?: ""
-            parse(content, listName)
+            if (url.endsWith(".json") || content.trim().startsWith("{")) {
+                parseJson(content, listName)
+            } else {
+                parse(content, listName)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
         }
+    }
+
+    private fun parseJson(content: String, listName: String): List<Channel> {
+        val channels = mutableListOf<Channel>()
+        try {
+            val root = JSONObject(content)
+            val hashesArr = root.optJSONArray("hashes")
+            if (hashesArr != null) {
+                for (i in 0 until hashesArr.length()) {
+                    val obj = hashesArr.getJSONObject(i)
+                    val title = obj.optString("title", "Canal")
+                    val hash = obj.optString("hash", "")
+                    val group = obj.optString("group", "Otros")
+                    val logo = obj.optString("logo", "")
+
+                    if (hash.isNotEmpty()) {
+                        channels.add(
+                            Channel(
+                                name = title,
+                                url = "acestream://$hash",
+                                logo = logo.ifEmpty { null },
+                                category = group,
+                                sourceListName = listName
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return channels
     }
 
     fun parse(content: String, listName: String): List<Channel> {
