@@ -66,46 +66,51 @@ object PlayerUtils {
     }
 
     fun getAceId(urlOrId: String): String {
-        if (urlOrId.isEmpty()) return ""
-        
-        // Limpiamos la entrada de espacios o posibles comillas
-        val input = urlOrId.trim().replace("\"", "").replace("'", "")
-
-        // 1. Intentar extraer de id= (el más común en nuestras listas)
-        if (input.contains("id=")) {
-            val afterId = input.substringAfter("id=")
-            // Tomamos los primeros 40 caracteres si parecen ser un hash
-            val idPart = afterId.substringBefore("&").substringBefore("/").substringBefore(" ").trim()
-            if (idPart.length >= 40) {
-                val candidate = idPart.take(40)
-                if (candidate.all { it.isLetterOrDigit() }) return candidate
-            }
-        }
-
-        // 2. Intentar extraer de acestream://
-        if (input.startsWith("acestream://")) {
-            val idPart = input.substringAfter("acestream://").substringBefore("/").substringBefore("?").trim()
-            if (idPart.length >= 40) {
-                val candidate = idPart.take(40)
-                if (candidate.all { it.isLetterOrDigit() }) return candidate
-            }
-        }
-
-        // 3. Búsqueda por Regex de 40 caracteres hexadecimales (el formato estándar de AceID)
-        // Buscamos cualquier cadena de exactamente 40 caracteres alfanuméricos
-        val regex = Regex("[a-fA-F0-9]{40}")
-        val match = regex.find(input)
-        if (match != null) {
-            return match.value
-        }
-
-        // 4. Si la cadena en sí tiene 40 caracteres y es alfanumérica, asumimos que es el ID
-        if (input.length == 40 && input.all { it.isLetterOrDigit() }) {
-            return input
-        }
-
-        return ""
+        // Buscar el primer (y único) hash de 40 caracteres hex en toda la cadena
+        return Regex("[a-fA-F0-9]{40}").find(urlOrId)?.value ?: ""
     }
+
+//    fun getAceId(urlOrId: String): String {
+//        if (urlOrId.isEmpty()) return ""
+//
+//        // Limpiamos la entrada de espacios o posibles comillas
+//        val input = urlOrId.trim().replace("\"", "").replace("'", "")
+//
+//        // 1. Intentar extraer de id= (el más común en nuestras listas)
+//        if (input.contains("id=")) {
+//            val afterId = input.substringAfter("id=")
+//            // Tomamos los primeros 40 caracteres si parecen ser un hash
+//            val idPart = afterId.substringBefore("&").substringBefore("/").substringBefore(" ").trim()
+//            if (idPart.length >= 40) {
+//                val candidate = idPart.take(40)
+//                if (candidate.all { it.isLetterOrDigit() }) return candidate
+//            }
+//        }
+//
+//        // 2. Intentar extraer de acestream://
+//        if (input.startsWith("acestream://")) {
+//            val idPart = input.substringAfter("acestream://").substringBefore("/").substringBefore("?").trim()
+//            if (idPart.length >= 40) {
+//                val candidate = idPart.take(40)
+//                if (candidate.all { it.isLetterOrDigit() }) return candidate
+//            }
+//        }
+//
+//        // 3. Búsqueda por Regex de 40 caracteres hexadecimales (el formato estándar de AceID)
+//        // Buscamos cualquier cadena de exactamente 40 caracteres alfanuméricos
+//        val regex = Regex("[a-fA-F0-9]{40}")
+//        val match = regex.find(input)
+//        if (match != null) {
+//            return match.value
+//        }
+//
+//        // 4. Si la cadena en sí tiene 40 caracteres y es alfanumérica, asumimos que es el ID
+//        if (input.length == 40 && input.all { it.isLetterOrDigit() }) {
+//            return input
+//        }
+//
+//        return ""
+//    }
 
     fun formatAceStreamHttpUrl(urlOrId: String): String {
         val id = getAceId(urlOrId)
