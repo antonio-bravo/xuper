@@ -265,27 +265,32 @@ fun MainTvScreen(
                     val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
                     Button(
                         onClick = {
-                            val rawUrl = channel.url.trim()
-                            val aceId = PlayerUtils.getAceId(rawUrl)
-
-                            if (aceId.isNotEmpty()) {
-                                // ✅ Usar launchAceStream con protocolo nativo
-                                PlayerUtils.launchAceStream(context, channel.name, aceId)
-                            } else {
-                                // Fallback para URLs HTTP normales
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(rawUrl.toUri(), "video/*")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                try {
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    Intent.createChooser(intent, "Open with...").apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        context.startActivity(this)
-                                    }
-                                }
-                            }
+                            val testAceId = "1ab443f5b4beb6d586f19e8b25b9f9646cf2ab78"
+                            PlayerUtils.openInAceStreamApp(
+                                context,
+                                "http://127.0.0.1:6878/ace/getstream?id=$testAceId"
+                            )
+//                            val rawUrl = channel.url.trim()
+//                            val aceId = PlayerUtils.getAceId(rawUrl)
+//
+//                            if (aceId.isNotEmpty()) {
+//                                // ✅ Usar launchAceStream con protocolo nativo
+//                                PlayerUtils.launchAceStream(context, channel.name, aceId)
+//                            } else {
+//                                // Fallback para URLs HTTP normales
+//                                val intent = Intent(Intent.ACTION_VIEW).apply {
+//                                    setDataAndType(rawUrl.toUri(), "video/*")
+//                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                                }
+//                                try {
+//                                    context.startActivity(intent)
+//                                } catch (_: Exception) {
+//                                    Intent.createChooser(intent, "Open with...").apply {
+//                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                                        context.startActivity(this)
+//                                    }
+//                                }
+//                            }
                             showPlayerDialog = null
                         },
 //                        onClick = {
