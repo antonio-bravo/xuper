@@ -15,8 +15,10 @@ object M3UParser {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
-                val content = response.body?.string() ?: ""
-                if (url.contains(".json", ignoreCase = true) || content.trim().startsWith("{")) {
+                val content = response.body?.string()?.trim() ?: ""
+                
+                // Detección robusta de JSON
+                if (url.contains(".json", ignoreCase = true) || content.startsWith("{") || content.contains("\"hashes\"")) {
                     parseJson(content, listName)
                 } else {
                     parse(content, listName)
@@ -42,10 +44,11 @@ object M3UParser {
                     val logo = obj.optString("logo", "")
 
                     if (hash.isNotEmpty()) {
+                        val cleanHash = hash.trim().lowercase()
                         channels.add(
                             Channel(
                                 name = title,
-                                url = "acestream://$hash",
+                                url = "acestream://$cleanHash",
                                 logo = logo.ifEmpty { null },
                                 category = group,
                                 sourceListName = listName

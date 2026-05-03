@@ -66,8 +66,17 @@ object PlayerUtils {
     }
 
     fun getAceId(urlOrId: String): String {
-        // Buscar el primer (y único) hash de 40 caracteres hex en toda la cadena
-        return Regex("[a-fA-F0-9]{40}").find(urlOrId)?.value ?: ""
+        if (urlOrId.isEmpty()) return ""
+        
+        // Expresión regular para encontrar hashes de 40 caracteres hexadecimales
+        val regex = Regex("[a-fA-F0-9]{40}")
+        
+        // Buscamos todas las ocurrencias y nos quedamos con la última
+        // Esto soluciona problemas de URLs anidadas tipo id=http://...id=HASH
+        val allMatches = regex.findAll(urlOrId)
+        val lastMatch = allMatches.lastOrNull()
+        
+        return lastMatch?.value?.lowercase()?.trim() ?: ""
     }
 
 //    fun getAceId(urlOrId: String): String {

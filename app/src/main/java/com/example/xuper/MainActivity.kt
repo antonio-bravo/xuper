@@ -139,7 +139,6 @@ fun XuperApp() {
 
         // Forzamos la inclusión de la lista IPFS si no está
         if (list.none { it.name == "IPFS Hashes" }) {
-            // Usamos un gateway más estable
             list.add(M3UList(name = "IPFS Hashes", url = "https://ipfs.io/ipns/k51qzi5uqu5di462t7j4vu4akwfhvtjhy88qbupktvoacqfqe9uforjvhyi4wr/hashes.json"))
         }
 
