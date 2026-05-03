@@ -275,13 +275,13 @@ fun MainTvScreen(
 
                             if (aceId.isNotEmpty()) {
                                 // ✅ Usar launchAceStream con protocolo nativo
-                                PlayerUtils.launchAceStream(context, channel.name, aceId)
+//                                PlayerUtils.launchAceStream(context, channel.name, aceId)
 
                                 // 🔄 Alternativa: si prefieres mantener openInAceStreamApp con proxy HTTP:
-                                // PlayerUtils.openInAceStreamApp(
-                                //     context,
-                                //     "http://127.0.0.1:6878/ace/getstream?id=$aceId"
-                                // )
+                                 PlayerUtils.openInAceStreamApp(
+                                     context,
+                                     "http://127.0.0.1:6878/ace/getstream?id=$aceId"
+                                 )
 
                             } else {
                                 // Fallback para URLs HTTP normales

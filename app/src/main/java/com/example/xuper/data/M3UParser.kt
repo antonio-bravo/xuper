@@ -43,7 +43,8 @@ object M3UParser {
                         channels.add(
                             Channel(
                                 name = title,
-                                url = "acestream://$hash",
+                                url = "http://127.0.0.1:6878/ace/getstream?id=\$hash",
+//                                url = "acestream://$hash",
                                 logo = logo.ifEmpty { null },
                                 category = group,
                                 sourceListName = listName
