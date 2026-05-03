@@ -13,12 +13,14 @@ object M3UParser {
     suspend fun fetchAndParse(url: String, listName: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
-            val content = response.body?.string() ?: ""
-            if (url.endsWith(".json") || content.trim().startsWith("{")) {
-                parseJson(content, listName)
-            } else {
-                parse(content, listName)
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext emptyList()
+                val content = response.body?.string() ?: ""
+                if (url.contains(".json", ignoreCase = true) || content.trim().startsWith("{")) {
+                    parseJson(content, listName)
+                } else {
+                    parse(content, listName)
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -43,8 +45,7 @@ object M3UParser {
                         channels.add(
                             Channel(
                                 name = title,
-                                url = "http://127.0.0.1:6878/ace/getstream?id=\$hash",
-//                                url = "acestream://$hash",
+                                url = "acestream://$hash",
                                 logo = logo.ifEmpty { null },
                                 category = group,
                                 sourceListName = listName

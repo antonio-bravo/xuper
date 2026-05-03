@@ -136,6 +136,13 @@ fun XuperApp() {
             list.add(M3UList(name = "Deportes (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/sports.m3u"))
             list.add(M3UList(name = "Kids (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/kids.m3u"))
         }
+
+        // Forzamos la inclusión de la lista IPFS si no está
+        if (list.none { it.name == "IPFS Hashes" }) {
+            // Usamos un gateway más estable
+            list.add(M3UList(name = "IPFS Hashes", url = "https://ipfs.io/ipns/k51qzi5uqu5di462t7j4vu4akwfhvtjhy88qbupktvoacqfqe9uforjvhyi4wr/hashes.json"))
+        }
+
         mutableStateOf(list.toList())
     }
 

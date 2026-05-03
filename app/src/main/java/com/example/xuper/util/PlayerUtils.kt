@@ -131,41 +131,24 @@ object PlayerUtils {
     }
 
     fun openInAceStreamApp(context: Context, url: String) {
-        // Intent 1: Específico con paquete Ace Stream y MIME type solicitado
-        val intent1 = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(Uri.parse(url), "application/x-mpegurl")
-            setPackage("org.acestream.media")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        // Intent 2: Con paquete pero sin MIME type (a veces el MIME bloquea la resolución)
-        val intent2 = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse(url)
-            setPackage("org.acestream.media")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        // Intent 3: Genérico (deja que el sistema elija)
-        val intent3 = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(Uri.parse(url), "application/x-mpegurl")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        val intents = listOf(intent1, intent2, intent3)
-        var success = false
-
-        for (intent in intents) {
-            try {
-                context.startActivity(intent)
-                success = true
-                break
-            } catch (e: Exception) {
-                continue
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(Uri.parse(url), "application/x-mpegurl")
+                setPackage("org.acestream.media")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-        }
-
-        if (!success) {
-            Toast.makeText(context, "No se pudo abrir Ace Stream", Toast.LENGTH_SHORT).show()
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                // Fallback sin paquete por si acaso
+                val genericIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(Uri.parse(url), "application/x-mpegurl")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(genericIntent)
+            } catch (e2: Exception) {
+                Toast.makeText(context, "Ace Stream no está instalado", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
