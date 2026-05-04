@@ -129,6 +129,7 @@ fun XuperApp() {
             list.add(M3UList(name = "VipRow", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/viprow.m3u"))
             list.add(M3UList(name = "IPFS Hashes", url = "https://ipfs.io/ipns/k51qzi5uqu5di462t7j4vu4akwfhvtjhy88qbupktvoacqfqe9uforjvhyi4wr/hashes.json"))
             list.add(M3UList(name = "TvPremiumHD", url = "http://tvpremiumhd.club/tv.m3u"))
+            list.add(M3UList(name = "_ipfs_io", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/ipfs_io.m3u"))
             
             // Fuentes de IPTV-org (Open Source)
             list.add(M3UList(name = "Cine & Series (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/movies.m3u"))

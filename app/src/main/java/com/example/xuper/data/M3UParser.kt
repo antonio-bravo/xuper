@@ -13,16 +13,17 @@ object M3UParser {
     suspend fun fetchAndParse(url: String, listName: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext emptyList()
-                val content = response.body?.string()?.trim() ?: ""
-                
-                // Detección robusta de JSON
-                if (url.contains(".json", ignoreCase = true) || content.startsWith("{") || content.contains("\"hashes\"")) {
-                    parseJson(content, listName)
-                } else {
-                    parse(content, listName)
-                }
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext emptyList()
+            
+            val content = response.body?.string()?.trim() ?: ""
+            if (content.isEmpty()) return@withContext emptyList()
+
+            // Detección robusta: si la URL contiene .json o el contenido parece JSON
+            return@withContext if (url.contains(".json", ignoreCase = true) || content.startsWith("{") || content.startsWith("[")) {
+                parseJson(content, listName)
+            } else {
+                parse(content, listName)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -39,21 +40,23 @@ object M3UParser {
                 for (i in 0 until hashesArr.length()) {
                     val obj = hashesArr.getJSONObject(i)
                     val title = obj.optString("title", "Canal")
-                    val hash = obj.optString("hash", "")
+                    val hash = obj.optString("hash", "").trim().lowercase()
                     val group = obj.optString("group", "Otros")
                     val logo = obj.optString("logo", "")
 
                     if (hash.isNotEmpty()) {
-                        val cleanHash = hash.trim().lowercase()
-                        channels.add(
-                            Channel(
-                                name = title,
-                                url = "acestream://$cleanHash",
-                                logo = logo.ifEmpty { null },
-                                category = group,
-                                sourceListName = listName
+                        // Limitar longitud para evitar SQLiteBlobTooBigException
+                        if (hash.length <= 100 && title.length <= 500) {
+                            channels.add(
+                                Channel(
+                                    name = title,
+                                    url = "acestream://$hash",
+                                    logo = if (logo.length > 1000) null else logo.ifEmpty { null },
+                                    category = group.take(100),
+                                    sourceListName = listName
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -95,13 +98,13 @@ object M3UParser {
             } else if (trimmedLine.startsWith("#EXTGRP:")) {
                 currentCategory = trimmedLine.substringAfter(":").split(";").firstOrNull()?.trim() ?: "Otros"
             } else if (!trimmedLine.startsWith("#")) {
-                if (trimmedLine.isNotEmpty()) {
+                if (trimmedLine.isNotEmpty() && trimmedLine.length < 2000) { // Evitar URLs gigantes
                     channels.add(
                         Channel(
-                            name = currentName.ifEmpty { "Canal" },
+                            name = currentName.ifEmpty { "Canal" }.take(500),
                             url = trimmedLine,
-                            logo = currentLogo.ifEmpty { null },
-                            category = currentCategory,
+                            logo = if (currentLogo.length > 1000) null else currentLogo.ifEmpty { null },
+                            category = currentCategory.take(100),
                             sourceListName = listName,
                         ),
                     )
