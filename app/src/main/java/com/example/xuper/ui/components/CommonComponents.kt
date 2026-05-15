@@ -1,11 +1,13 @@
 package com.example.xuper.ui.components
 
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
 import androidx.annotation.OptIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -35,6 +37,17 @@ import com.example.xuper.util.PlayerUtils
 
 @Composable
 fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val activity = context as? ComponentActivity
+
+    // Mantener la pantalla encendida mientras el reproductor esté activo
+    DisposableEffect(Unit) {
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     if ((url.contains("127.0.0.1:6878") && !url.contains("manifest.m3u8")) || url.startsWith("acestream://")) {
         val context = LocalContext.current
         Box(modifier = modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
@@ -87,6 +100,7 @@ fun WebPlayer(url: String, modifier: Modifier = Modifier) {
                 
                 webViewClient = WebViewClient()
                 webChromeClient = WebChromeClient()
+                keepScreenOn = true
                 
                 loadUrl(url)
             }
@@ -126,6 +140,7 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
             PlayerView(context).apply {
                 player = exoPlayer
                 useController = true
+                keepScreenOn = true
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
