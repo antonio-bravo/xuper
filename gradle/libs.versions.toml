@@ -17,7 +17,7 @@ room = "2.8.4"
 ksp = "2.3.2"
 
 okhttp = "4.12.0"
-jsoup = "1.17.2"
+jsoup = "1.22.2"
 
 [libraries]
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
