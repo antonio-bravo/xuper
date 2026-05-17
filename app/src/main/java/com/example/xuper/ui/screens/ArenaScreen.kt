@@ -58,35 +58,63 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     if (showChannelPicker && selectedEventForPicker != null) {
         AlertDialog(
             onDismissRequest = { showChannelPicker = false },
-            title = { Text("Seleccionar Canal") },
+            title = { 
+                Column {
+                    Text("Seleccionar Canal", style = MaterialTheme.typography.titleLarge)
+                    Text(selectedEventForPicker!!.title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            },
             text = {
                 Column {
-                    Text(selectedEventForPicker!!.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                         items(selectedEventForPicker!!.channels) { channelName ->
-                            val url = streams[channelName]
-                            if (url != null) {
-                                val aceId = PlayerUtils.getAceId(url)
-                                Card(
-                                    onClick = {
+                            val hash = streams[channelName]
+                            val isAvailable = hash != null
+                            
+                            Card(
+                                onClick = {
+                                    if (isAvailable) {
                                         pendingChannelName = channelName
-                                        pendingUrl = url
+                                        pendingUrl = hash!!
                                         showChannelPicker = false
                                         showUrlDialog = true
-                                    },
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                                ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(channelName, fontWeight = FontWeight.Bold)
-                                        }
-                                        if (aceId.isNotEmpty()) {
-                                            Text("AceID: $aceId", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isAvailable) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                enabled = isAvailable
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (isAvailable) Icons.Default.PlayArrow else Icons.Default.ContentCopy, 
+                                            contentDescription = null, 
+                                            tint = if (isAvailable) MaterialTheme.colorScheme.primary else Color.Gray
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = channelName, 
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
+                                        )
+                                    }
+                                    if (hash != null) {
+                                        Text(
+                                            text = "ID: ${hash.take(10)}...", 
+                                            style = MaterialTheme.typography.labelSmall, 
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                            maxLines = 1, 
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "ID no encontrado", 
+                                            style = MaterialTheme.typography.labelSmall, 
+                                            color = Color.Red.copy(alpha = 0.5f)
+                                        )
                                     }
                                 }
                             }
@@ -120,13 +148,14 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     if (showUrlDialog) {
         val displayUrl = PlayerUtils.formatAceStreamHttpUrl(pendingUrl)
         val getStreamUrl = PlayerUtils.formatAceStreamGetStreamUrl(pendingUrl)
+        val aceId = PlayerUtils.getAceId(pendingUrl)
+        
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
             title = { Text("¿Cómo quieres abrir el canal?") },
             text = {
                 Column {
                     Text("Canal: $pendingChannelName", fontWeight = FontWeight.Bold)
-                    val aceId = PlayerUtils.getAceId(pendingUrl)
                     if (aceId.isNotEmpty()) {
                         Text("AceID: $aceId", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
@@ -156,8 +185,6 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                             }
                         }
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Text("Selecciona una opción:", style = MaterialTheme.typography.labelMedium)
                 }
             },
             confirmButton = {
@@ -175,12 +202,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         Button(
                             onClick = {
                                 showUrlDialog = false
-                                val aceId = PlayerUtils.getAceId(pendingUrl)
-                                if (aceId.isNotEmpty()) {
-                                    PlayerUtils.openInAceStreamApp(context, "http://127.0.0.1:6878/ace/getstream?id=$aceId")
-                                } else {
-                                    PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
-                                }
+                                PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
                             },
                             modifier = Modifier.weight(1f)
                         ) {
@@ -196,16 +218,6 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
                         Text("Abrir con App Ace Stream (Intent)")
-                    }
-                    Button(
-                        onClick = {
-                            showUrlDialog = false
-                            PlayerUtils.openInAceStreamApp(context, "http://127.0.0.1:6878/ace/getstream?id=1ab443f5b4beb6d586f19e8b25b9f9646cf2ab78")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-                    ) {
-                        Text("kk")
                     }
                 }
             },
@@ -301,11 +313,6 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         onRowClick = {
                             selectedEventForPicker = it
                             showChannelPicker = true
-                        },
-                        onChannelClick = { name, url ->
-                            pendingChannelName = name
-                            pendingUrl = url
-                            showUrlDialog = true
                         }
                     )
                 }
@@ -318,8 +325,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 fun ArenaEventRow(
     event: ArenaEvent, 
     streams: Map<String, String>, 
-    onRowClick: (ArenaEvent) -> Unit,
-    onChannelClick: (String, String) -> Unit
+    onRowClick: (ArenaEvent) -> Unit
 ) {
     var isFocused by remember { mutableStateOf(value = false) }
     val backgroundColor by animateColorAsState(
@@ -397,37 +403,25 @@ fun ArenaEventRow(
             // CANALES - Usando Row en lugar de LazyRow para evitar problemas de scroll/foco
             Row(
                 modifier = Modifier.weight(0.3f),
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Solo mostramos los primeros 4 canales para que quepan bien en una línea
-                event.channels.take(4).forEach { channelName ->
-                    val url = streams[channelName]
-                    if (url != null) {
-                        var isChanFocused by remember { mutableStateOf(value = false) }
-                        val chanScale by animateFloatAsState(if (isChanFocused) 1.2f else 1f, label = "chanScale")
-
-                        IconButton(
-                            onClick = { onChannelClick(channelName, url) },
-                            modifier = Modifier
-                                .padding(horizontal = 2.dp)
-                                .onFocusChanged { isChanFocused = it.isFocused }
-                                .scale(chanScale)
-                                .background(
-                                    if (isChanFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    shape = MaterialTheme.shapes.small
-                                )
-                                .size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = channelName,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
+                val availableChannels = event.channels.filter { streams.containsKey(it) }
+                if (availableChannels.isNotEmpty()) {
+                    Text(
+                        text = "${availableChannels.size} Canales",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
                 }
+                
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "Ver canales",
+                    tint = if (availableChannels.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

@@ -2,42 +2,89 @@ package com.example.xuper.data
 
 import com.example.xuper.model.ArenaEvent
 import com.example.xuper.model.ArenaStream
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 object ArenaParser {
-    private val client = OkHttpClient()
+    private val client = getUnsafeOkHttpClient()
+    private const val API_KEY = "fc8c75bd41f06b0fa1d32c8b0b76493d"
+
     val sources = listOf(
-        "http://www.arena4viewer.in/misguia2.php",
-        "http://www.arena4viewer.pl/misguia2.php",
+        "https://arena4viewer.in/misguia2.php",
+        "https://www.arena4viewer.ru/misguia2.php",
+        "https://www.arena4viewer.app/misguia2.php",
         "https://www.arena4viewer.co.in/misguia2.php",
         "https://www.arena4viewer.cool/misguia2.php",
+        "https://www.arena4viewer.top/misguia2.php",
+        "https://www.arena4viewer.lv/misguia2.php",
     )
+
+    private fun getUnsafeOkHttpClient(): OkHttpClient {
+        try {
+            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            })
+
+            val sslContext = SSLContext.getInstance("SSL")
+            sslContext.init(null, trustAllCerts, SecureRandom())
+
+            return OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+                .hostnameVerifier { _, _ -> true }
+                .build()
+        } catch (e: Exception) {
+            return OkHttpClient()
+        }
+    }
 
     suspend fun fetchArenaData(sourceUrl: String? = null): Pair<List<ArenaEvent>, Map<String, String>> = withContext(Dispatchers.IO) {
         var html = ""
         val urlsToTry = if (sourceUrl != null) listOf(sourceUrl) else sources
         
-        // Simular el User-Agent y headers que usa la app oficial para que el servidor inyecte los streams
+        val expireDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+
         val headers = mapOf(
-            "User-Agent" to "Arena4Viewer/4.0",
-            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Connection" to "keep-alive"
+            "User-Agent" to "Dalvik/2.1.0 (Linux; U; Android 14; Pixel 7 Build/UQ1A.231205.015)",
+            "X-Requested-With" to "com.bone.android.a4v.oficial",
+            "Content-Type" to "application/x-www-form-urlencoded",
+            "Accept-Encoding" to "gzip",
+            "Connection" to "Keep-Alive"
         )
 
         for (url in urlsToTry) {
             try {
-                val requestBuilder = Request.Builder().url(url)
+                val formBody = FormBody.Builder()
+                    .add("key", API_KEY)
+                    .add("expire", expireDate)
+                    .build()
+
+                val requestBuilder = Request.Builder()
+                    .url(url)
+                    .post(formBody)
+                
                 headers.forEach { (name, value) -> requestBuilder.addHeader(name, value) }
                 
                 val response = client.newCall(requestBuilder.build()).execute()
                 if (response.isSuccessful) {
-                    html = response.body?.string() ?: ""
-                    // Verificamos si realmente contiene la agenda o al menos la estructura básica
-                    if (html.contains("<table") || html.contains("streams")) break
+                    val body = response.body?.string() ?: ""
+                    if (body.contains("<table") || body.contains("acestream://")) {
+                        html = body
+                        break
+                    }
                 }
             } catch (e: Exception) {
                 continue
@@ -46,56 +93,46 @@ object ArenaParser {
 
         if (html.isEmpty()) return@withContext Pair(emptyList(), emptyMap())
 
-        val doc = Jsoup.parse(html)
-        
-        // 1. Parse Streams (Hidden div)
         val streamsMap = mutableMapOf<String, String>()
-        val streamsDiv = doc.select("div.streams").firstOrNull()
         
-        if (streamsDiv != null) {
-            val content = streamsDiv.text()
-            // El formato suele ser AV1|hash|AV2|hash|... o separado por punto y coma
-            // Intentamos ambos delimitadores comunes
-            val parts = if (content.contains(";")) {
-                content.split(";")
-            } else {
-                content.split("|").chunked(2).map { it.joinToString("|") }
-            }
-
-            parts.forEach { entry ->
-                val subParts = entry.split("|")
-                if (subParts.size >= 2) {
-                    val name = subParts[0].trim()
-                    val url = subParts[1].trim()
-                    if (name.isNotEmpty() && url.isNotEmpty()) {
-                        streamsMap[name] = url
-                    }
-                }
-            }
+        // Regex para capturar av1#acestream://ID
+        val canalPattern = Regex("""av\s*(\d{1,3})\s*#acestream://([a-fA-F0-9]{40})""", RegexOption.IGNORE_CASE)
+        canalPattern.findAll(html).forEach { match ->
+            val num = match.groupValues[1]
+            val hash = match.groupValues[2].lowercase()
+            streamsMap["AV$num"] = hash
         }
 
-        // Si el div oculto falló, intentamos buscar en scripts o comentarios (fallback común)
-        if (streamsMap.isEmpty()) {
-            val scriptContent = doc.select("script").text()
-            val regex = Regex("(AV\\d+)\\|([a-fA-F0-9]{40})")
-            regex.findAll(html + scriptContent).forEach { match ->
-                streamsMap[match.groupValues[1]] = match.groupValues[2]
-            }
-        }
-
-        // 2. Parse Agenda (Table)
+        // Parse Agenda (Table)
         val events = mutableListOf<ArenaEvent>()
+        val doc = Jsoup.parse(html)
         val table = doc.select("table").firstOrNull()
         table?.select("tr")?.forEach { row ->
-            val cols = row.select("td")
-            if (cols.size >= 5) {
-                events.add(ArenaEvent(
-                    time = cols[0].text().trim(),
-                    sport = cols[1].text().trim(),
-                    title = cols[2].text().trim(),
-                    competition = cols[3].text().trim(),
-                    channels = cols[4].text().split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                ))
+            val cells = row.select("td, th")
+            if (cells.size >= 5) {
+                // Estructura: DAY (opcional) | TIME | SPORT | COMPETITION | EVENT | LIVE
+                val cleanCells = cells.map { it.text().trim() }
+                val hasDate = cleanCells.size >= 6 && cleanCells[0].contains("/")
+                val offset = if (hasDate) 1 else 0
+                
+                val timeStr = cleanCells[offset]
+                val sport = cleanCells[offset + 1].uppercase()
+                val competition = cleanCells[offset + 2].uppercase()
+                val eventName = cleanCells[offset + 3]
+                val liveList = cleanCells[offset + 4]
+
+                if (timeStr.contains(":")) {
+                    val avNums = Regex("""\d+""").findAll(liveList).map { "AV${it.value}" }.toList()
+                    if (avNums.isNotEmpty()) {
+                        events.add(ArenaEvent(
+                            time = timeStr,
+                            sport = sport,
+                            title = eventName,
+                            competition = competition,
+                            channels = avNums
+                        ))
+                    }
+                }
             }
         }
 
