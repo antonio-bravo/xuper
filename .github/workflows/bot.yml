@@ -19,6 +19,9 @@ jobs:
         uses: dependabot/fetch-metadata@v3
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
+          # Al mapear el número explícitamente se mitiga el fallo de "nothing to do" al reejecutar
+          pr-number: ${{ github.event.pull_request.number }}
+                    
       - name: Enable auto-merge for Dependabot PRs
         # if: contains(steps.metadata.outputs.dependency-names, 'my-dependency') && steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr merge --auto --merge "$PR_URL"
