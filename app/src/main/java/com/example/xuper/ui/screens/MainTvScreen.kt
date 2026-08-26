@@ -2,6 +2,7 @@ package com.example.xuper.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -52,10 +53,20 @@ fun MainTvScreen(
 
     Column {
         if (selectedChannel != null) {
+            var isPlayerFocused by remember { mutableStateOf(false) }
+            val playerScale by animateFloatAsState(if (isPlayerFocused) 1.02f else 1f, label = "playerScale")
+            
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(250.dp)
+                    .onFocusChanged { isPlayerFocused = it.isFocused }
+                    .scale(playerScale)
+                    .border(
+                        width = if (isPlayerFocused) 4.dp else 0.dp,
+                        color = if (isPlayerFocused) MaterialTheme.colorScheme.primary else Color.Transparent
+                    )
+                    .clickable { onFullScreen() }
                     .focusable(),
             ) {
                 UniversalPlayer(url = selectedChannel.url)
@@ -186,7 +197,7 @@ fun MainTvScreen(
                 ((selectedListName == allListsLabel || it.sourceListName == selectedListName) &&
                         (selectedCategory == allCategoriesLabel || it.category == selectedCategory) &&
                         it.name.contains(searchQuery, ignoreCase = true))
-            }.distinctBy { it.url }
+            }.distinctBy { it.url + it.name + it.category }
         }
 
         ChannelList(

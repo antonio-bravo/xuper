@@ -3,9 +3,12 @@ package com.example.xuper
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -17,11 +20,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xuper.ui.AppLanguage
 import com.example.xuper.ui.LanguageManager
 import com.example.xuper.ui.stringResourceAI
@@ -30,20 +37,12 @@ import com.example.xuper.model.M3UList
 import com.example.xuper.ui.components.ErrorState
 import com.example.xuper.ui.components.SidebarItem
 import com.example.xuper.ui.components.UniversalPlayer
-import com.example.xuper.ui.screens.ArenaScreen
-import com.example.xuper.ui.screens.FavoritesScreen
-import com.example.xuper.ui.screens.ListsManagementScreen
-import com.example.xuper.ui.screens.MainTvScreen
-import com.example.xuper.ui.screens.XuperConfigScreen
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.xuper.ui.screens.*
 import com.example.xuper.ui.viewmodel.MainViewModel
 import com.example.xuper.ui.viewmodel.MainViewModelFactory
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.onFocusChanged
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,7 +81,17 @@ enum class Screen {
 @Composable
 fun XuperApp() {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val app = context.applicationContext as XuperApplication
+    
+    // Detección de TV o Móvil en Horizontal
+    val isTv = remember {
+        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as android.app.UiModeManager
+        uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+    }
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val useSidebar = isTv || isLandscape
+
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(app.repository)
     )
@@ -114,11 +123,12 @@ fun XuperApp() {
                     list.add(M3UList(obj.getString("id"), obj.getString("name"), obj.getString("url")))
                 }
             } catch (e: Exception) {
-                // Ignore parsing errors
             }
         }
         
         if (list.isEmpty()) {
+            list.add(M3UList(name = "Arena4Viewer", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/arena4viewer.m3u"))
+            list.add(M3UList(name = "_ipfs_io", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/ipfs_io.m3u"))
             list.add(M3UList(name = "TDT Channels", url = "https://www.tdtchannels.com/lists/tv.m3u8"))
             list.add(M3UList(name = "Lista Scraper Acestream", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_scraper_acestream_api.m3u"))
             list.add(M3UList(name = "Lacasadel_TikiTaka", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lacasadel_tikitaka.m3u"))
@@ -129,16 +139,13 @@ fun XuperApp() {
             list.add(M3UList(name = "VipRow", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/viprow.m3u"))
             list.add(M3UList(name = "IPFS Hashes", url = "https://ipfs.io/ipns/k51qzi5uqu5di462t7j4vu4akwfhvtjhy88qbupktvoacqfqe9uforjvhyi4wr/hashes.json"))
             list.add(M3UList(name = "TvPremiumHD", url = "http://tvpremiumhd.club/tv.m3u"))
-            list.add(M3UList(name = "_ipfs_io", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/ipfs_io.m3u"))
-            
-            // Fuentes de IPTV-org (Open Source)
+
             list.add(M3UList(name = "Cine & Series (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/movies.m3u"))
             list.add(M3UList(name = "Documentales (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/documentary.m3u"))
             list.add(M3UList(name = "Deportes (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/sports.m3u"))
             list.add(M3UList(name = "Kids (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/kids.m3u"))
         }
 
-        // Forzamos la inclusión de la lista IPFS si no está
         if (list.none { it.name == "IPFS Hashes" }) {
             list.add(M3UList(name = "IPFS Hashes", url = "https://ipfs.io/ipns/k51qzi5uqu5di462t7j4vu4akwfhvtjhy88qbupktvoacqfqe9uforjvhyi4wr/hashes.json"))
         }
@@ -148,7 +155,7 @@ fun XuperApp() {
 
     var refreshTrigger by remember { mutableIntStateOf(0) }
     val filterFocusRequester = remember { FocusRequester() }
-
+    
     LaunchedEffect(m3uLists, refreshTrigger) {
         viewModel.refreshChannels(m3uLists)
     }
@@ -175,122 +182,101 @@ fun XuperApp() {
     }
 
     if (isFullScreen && selectedChannel != null) {
-        val channelUrl = selectedChannel?.url ?: ""
         FullScreenPlayer(
-            url = channelUrl,
+            url = selectedChannel!!.url,
             onClose = { isFullScreen = false }
         )
     } else {
-        Row(modifier = Modifier.fillMaxSize()) {
-            // Sidebar
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(100.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Spacer(Modifier.height(16.dp))
-
-                SidebarItem(
-                    selected = currentScreen == Screen.TV,
-                    onClick = { currentScreen = Screen.TV },
-                    icon = Icons.Default.Tv,
-                    label = stringResourceAI("tv"),
-                )
-
-                SidebarItem(
-                    selected = currentScreen == Screen.FAVORITES,
-                    onClick = { currentScreen = Screen.FAVORITES },
-                    icon = Icons.Default.Favorite,
-                    label = stringResourceAI("favorites"),
-                )
-
-                SidebarItem(
-                    selected = currentScreen == Screen.ARENA,
-                    onClick = { currentScreen = Screen.ARENA },
-                    icon = Icons.Default.SportsSoccer,
-                    label = "Arena",
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                SidebarItem(
-                    selected = currentScreen == Screen.LISTS,
-                    onClick = { currentScreen = Screen.LISTS },
-                    icon = Icons.AutoMirrored.Filled.List,
-                    label = stringResourceAI("lists"),
-                )
-
-                SidebarItem(
-                    selected = currentScreen == Screen.XUPER_CONFIG,
-                    onClick = { currentScreen = Screen.XUPER_CONFIG },
-                    icon = Icons.Default.Settings,
-                    label = stringResourceAI("xuper"),
-                )
-
-                SidebarItem(
-                    selected = false,
-                    onClick = { refreshTrigger++ },
-                    icon = Icons.Default.Refresh,
-                    label = stringResourceAI("refresh"),
-                )
-
-                SidebarItem(
-                    selected = false,
-                    onClick = { filterFocusRequester.requestFocus() },
-                    icon = Icons.Default.FilterList,
-                    label = stringResourceAI("filters"),
-                )
-
-                SidebarItem(
-                    selected = false,
-                    onClick = { showLanguageDialog = true },
-                    icon = Icons.Default.Language,
-                    label = stringResourceAI("language"),
-                )
-
-                Spacer(Modifier.height(16.dp))
-            }
-
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                when (currentScreen) {
-                    Screen.TV -> {
-                        if (errorMessage != null && currentChannels.isEmpty()) {
-                            ErrorState(errorMessage!!) { refreshTrigger++ }
-                        } else {
-                            MainTvScreen(
-                                channels = currentChannels,
-                                selectedChannel = selectedChannel,
-                                isLoading = isLoading,
-                                searchQuery = searchQuery,
-                                onSearchChange = { viewModel.setSearchQuery(it) },
-                                selectedCategory = selectedCategory,
-                                onCategoryChange = { viewModel.setSelectedCategory(it) },
-                                selectedListName = selectedListName,
-                                onListNameChange = { viewModel.setSelectedListName(it) },
-                                m3uLists = m3uLists,
-                                onToggleFavorite = { toggleFavorite(it) },
-                                onChannelSelected = onPlayChannel,
-                                onFullScreen = { isFullScreen = true },
-                                filterFocusRequester = filterFocusRequester
-                            )
-                        }
+        Scaffold(
+            bottomBar = {
+                if (!useSidebar) {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = 8.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.TV,
+                            onClick = { currentScreen = Screen.TV },
+                            icon = { Icon(Icons.Default.Tv, contentDescription = null) },
+                            label = { Text(stringResourceAI("tv")) }
+                        )
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.FAVORITES,
+                            onClick = { currentScreen = Screen.FAVORITES },
+                            icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+                            label = { Text(stringResourceAI("favorites")) }
+                        )
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.ARENA,
+                            onClick = { currentScreen = Screen.ARENA },
+                            icon = { Icon(Icons.Default.SportsSoccer, contentDescription = null) },
+                            label = { Text("Arena") }
+                        )
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.LISTS || currentScreen == Screen.XUPER_CONFIG,
+                            onClick = { currentScreen = Screen.LISTS },
+                            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                            label = { Text(stringResourceAI("xuper")) }
+                        )
                     }
-                    Screen.LISTS -> ListsManagementScreen(
-                        lists = m3uLists,
-                        onSaveLists = saveLists
-                    )
-                    Screen.FAVORITES -> FavoritesScreen(
-                        channels = favoriteChannels,
-                        onToggleFavorite = { toggleFavorite(it) },
-                        onChannelSelected = onPlayChannel
-                    )
-                    Screen.ARENA -> ArenaScreen()
-                    Screen.XUPER_CONFIG -> XuperConfigScreen()
+                }
+            }
+        ) { paddingValues ->
+            Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                if (useSidebar) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(100.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Spacer(Modifier.height(16.dp))
+                        SidebarItem(selected = currentScreen == Screen.TV, onClick = { currentScreen = Screen.TV }, icon = Icons.Default.Tv, label = stringResourceAI("tv"))
+                        SidebarItem(selected = currentScreen == Screen.FAVORITES, onClick = { currentScreen = Screen.FAVORITES }, icon = Icons.Default.Favorite, label = stringResourceAI("favorites"))
+                        SidebarItem(selected = currentScreen == Screen.ARENA, onClick = { currentScreen = Screen.ARENA }, icon = Icons.Default.SportsSoccer, label = "Arena")
+                        Spacer(Modifier.weight(1f))
+                        SidebarItem(selected = currentScreen == Screen.LISTS, onClick = { currentScreen = Screen.LISTS }, icon = Icons.AutoMirrored.Filled.List, label = stringResourceAI("lists"))
+                        SidebarItem(selected = currentScreen == Screen.XUPER_CONFIG, onClick = { currentScreen = Screen.XUPER_CONFIG }, icon = Icons.Default.Settings, label = stringResourceAI("xuper"))
+                        SidebarItem(selected = false, onClick = { refreshTrigger++ }, icon = Icons.Default.Refresh, label = stringResourceAI("refresh"))
+                        SidebarItem(selected = false, onClick = { filterFocusRequester.requestFocus() }, icon = Icons.Default.FilterList, label = stringResourceAI("filters"))
+                        SidebarItem(selected = false, onClick = { showLanguageDialog = true }, icon = Icons.Default.Language, label = stringResourceAI("language"))
+                        Spacer(Modifier.height(16.dp))
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    when (currentScreen) {
+                        Screen.TV -> {
+                            if (errorMessage != null && currentChannels.isEmpty()) {
+                                ErrorState(errorMessage!!) { refreshTrigger++ }
+                            } else {
+                                MainTvScreen(
+                                    channels = currentChannels,
+                                    selectedChannel = selectedChannel,
+                                    isLoading = isLoading,
+                                    searchQuery = searchQuery,
+                                    onSearchChange = { viewModel.setSearchQuery(it) },
+                                    selectedCategory = selectedCategory,
+                                    onCategoryChange = { viewModel.setSelectedCategory(it) },
+                                    selectedListName = selectedListName,
+                                    onListNameChange = { viewModel.setSelectedListName(it) },
+                                    m3uLists = m3uLists,
+                                    onToggleFavorite = { toggleFavorite(it) },
+                                    onChannelSelected = onPlayChannel,
+                                    onFullScreen = { isFullScreen = true },
+                                    filterFocusRequester = filterFocusRequester
+                                )
+                            }
+                        }
+                        Screen.LISTS -> ListsManagementScreen(lists = m3uLists, onSaveLists = saveLists)
+                        Screen.FAVORITES -> FavoritesScreen(channels = favoriteChannels, onToggleFavorite = { toggleFavorite(it) }, onChannelSelected = onPlayChannel)
+                        Screen.ARENA -> ArenaScreen()
+                        Screen.XUPER_CONFIG -> XuperConfigScreen()
+                    }
                 }
             }
         }
@@ -308,70 +294,38 @@ fun XuperApp() {
 }
 
 @Composable
-fun LanguageSelectionDialog(
-    onDismiss: () -> Unit,
-    onLanguageSelected: (AppLanguage) -> Unit,
-) {
+fun LanguageSelectionDialog(onDismiss: () -> Unit, onLanguageSelected: (AppLanguage) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResourceAI("language")) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column {
                 AppLanguage.entries.forEach { lang ->
-                    var isFocused by remember { mutableStateOf(value = false) }
-                    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, label = "langScale")
-
-                    Button(
+                    TextButton(
                         onClick = { onLanguageSelected(lang) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isFocused = it.isFocused }
-                            .scale(scale)
-                            .border(
-                                width = if (isFocused) 2.dp else 0.dp,
-                                color = if (isFocused) Color.White else Color.Transparent,
-                                shape = ButtonDefaults.shape,
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (isFocused) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(lang.displayName, style = MaterialTheme.typography.bodyLarge)
+                        Text(lang.displayName)
                     }
                 }
             }
         },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResourceAI("cancel"))
-            }
-        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResourceAI("cancel")) }
+        }
     )
 }
 
 @Composable
 fun FullScreenPlayer(url: String, onClose: () -> Unit) {
-    val context = LocalContext.current
-    val activity = context as? ComponentActivity
-    
-    DisposableEffect(Unit) {
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        onDispose {
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-    }
-
-    BackHandler { onClose() }
-
+    BackHandler(onBack = onClose)
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         UniversalPlayer(url = url)
         IconButton(
-            onClick = { onClose() },
-            modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+            onClick = onClose,
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
+            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
         }
     }
 }

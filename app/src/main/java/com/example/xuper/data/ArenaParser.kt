@@ -104,17 +104,22 @@ object ArenaParser {
         }
 
         // Parse Agenda (Table)
-        val events = mutableListOf<ArenaEvent>()
+        val groupedEvents = mutableMapOf<String, ArenaEvent>()
+        var currentDay = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+        
         val doc = Jsoup.parse(html)
         val table = doc.select("table").firstOrNull()
         table?.select("tr")?.forEach { row ->
             val cells = row.select("td, th")
             if (cells.size >= 5) {
-                // Estructura: DAY (opcional) | TIME | SPORT | COMPETITION | EVENT | LIVE
                 val cleanCells = cells.map { it.text().trim() }
                 val hasDate = cleanCells.size >= 6 && cleanCells[0].contains("/")
-                val offset = if (hasDate) 1 else 0
                 
+                if (hasDate) {
+                    currentDay = cleanCells[0]
+                }
+                
+                val offset = if (hasDate) 1 else 0
                 val timeStr = cleanCells[offset]
                 val sport = cleanCells[offset + 1].uppercase()
                 val competition = cleanCells[offset + 2].uppercase()
@@ -124,18 +129,32 @@ object ArenaParser {
                 if (timeStr.contains(":")) {
                     val avNums = Regex("""\d+""").findAll(liveList).map { "AV${it.value}" }.toList()
                     if (avNums.isNotEmpty()) {
-                        events.add(ArenaEvent(
-                            time = timeStr,
-                            sport = sport,
-                            title = eventName,
-                            competition = competition,
-                            channels = avNums
-                        ))
+                        val key = "$currentDay|$timeStr|$eventName"
+                        val existing = groupedEvents[key]
+                        
+                        if (existing != null) {
+                            // Merge channels avoiding duplicates
+                            val newChannels = (existing.channels + avNums).distinct().sortedBy { 
+                                it.replace("AV", "").toIntOrNull() ?: 999 
+                            }
+                            groupedEvents[key] = existing.copy(channels = newChannels)
+                        } else {
+                            groupedEvents[key] = ArenaEvent(
+                                date = currentDay,
+                                time = timeStr,
+                                sport = sport,
+                                title = eventName,
+                                competition = competition,
+                                channels = avNums.distinct().sortedBy { 
+                                    it.replace("AV", "").toIntOrNull() ?: 999 
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Pair(events, streamsMap)
+        Pair(groupedEvents.values.toList(), streamsMap)
     }
 }
