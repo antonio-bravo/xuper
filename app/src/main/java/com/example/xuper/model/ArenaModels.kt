@@ -1,6 +1,7 @@
 package com.example.xuper.model
 
 data class ArenaEvent(
+    val date: String,
     val time: String,
     val sport: String,
     val title: String,

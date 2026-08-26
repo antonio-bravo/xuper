@@ -1,8 +1,8 @@
 package com.example.xuper.ui.screens
 
-import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,13 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xuper.data.ArenaParser
 import com.example.xuper.model.ArenaEvent
@@ -36,6 +34,7 @@ import com.example.xuper.ui.components.UniversalPlayer
 import com.example.xuper.ui.viewmodel.ArenaViewModel
 import com.example.xuper.util.PlayerUtils
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     val events by viewModel.events.collectAsState()
@@ -43,7 +42,6 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
 
     // State for URL confirmation dialog
     var showUrlDialog by remember { mutableStateOf(false) }
@@ -87,35 +85,21 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                                 ),
                                 enabled = isAvailable
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            if (isAvailable) Icons.Default.PlayArrow else Icons.Default.ContentCopy, 
-                                            contentDescription = null, 
-                                            tint = if (isAvailable) MaterialTheme.colorScheme.primary else Color.Gray
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            text = channelName, 
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
-                                        )
-                                    }
-                                    if (hash != null) {
-                                        Text(
-                                            text = "ID: ${hash.take(10)}...", 
-                                            style = MaterialTheme.typography.labelSmall, 
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                            maxLines = 1, 
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    } else {
-                                        Text(
-                                            text = "ID no encontrado", 
-                                            style = MaterialTheme.typography.labelSmall, 
-                                            color = Color.Red.copy(alpha = 0.5f)
-                                        )
-                                    }
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        if (isAvailable) Icons.Default.PlayArrow else Icons.Default.ContentCopy, 
+                                        contentDescription = null, 
+                                        tint = if (isAvailable) MaterialTheme.colorScheme.primary else Color.Gray
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = channelName, 
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
+                                    )
                                 }
                             }
                         }
@@ -141,50 +125,20 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = Color.White)
             }
         }
-        // Don't show the rest of the UI when internal player is active
         return
     }
 
     if (showUrlDialog) {
         val displayUrl = PlayerUtils.formatAceStreamHttpUrl(pendingUrl)
-        val getStreamUrl = PlayerUtils.formatAceStreamGetStreamUrl(pendingUrl)
-        val aceId = PlayerUtils.getAceId(pendingUrl)
         
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
-            title = { Text("¿Cómo quieres abrir el canal?") },
+            title = { Text("Abrir Canal") },
             text = {
                 Column {
                     Text("Canal: $pendingChannelName", fontWeight = FontWeight.Bold)
-                    if (aceId.isNotEmpty()) {
-                        Text("AceID: $aceId", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text("Link a abrir:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = displayUrl,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            IconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(displayUrl))
-                                Toast.makeText(context, "Link copiado", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copiar", modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Selecciona el método de reproducción:")
                 }
             },
             confirmButton = {
@@ -208,16 +162,6 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         ) {
                             Text("Externo")
                         }
-                    }
-                    Button(
-                        onClick = {
-                            showUrlDialog = false
-                            PlayerUtils.openInAceStreamApp(context, getStreamUrl)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) {
-                        Text("Abrir con App Ace Stream (Intent)")
                     }
                 }
             },
@@ -257,7 +201,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         modifier = Modifier
                             .onFocusChanged { isFocused = it.isFocused }
                             .scale(scale)
-                            .focusable() // Asegurar que sea enfocable
+                            .focusable()
                             .border(
                                 width = if (isFocused) 2.dp else 0.dp,
                                 color = if (isFocused) Color.White else Color.Transparent,
@@ -279,42 +223,43 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 
         Spacer(Modifier.height(16.dp))
 
-        // Grid Header
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-            shape = MaterialTheme.shapes.extraSmall
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Hora", modifier = Modifier.weight(0.12f), fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Deporte", modifier = Modifier.weight(0.15f), fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Evento", modifier = Modifier.weight(0.43f), fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Canales", modifier = Modifier.weight(0.3f), fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         } else {
+            val grouped = remember(events) { events.groupBy { it.date } }
+            
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 32.dp)
             ) {
-                items(events) { event ->
-                    ArenaEventRow(event, streams, 
-                        onRowClick = {
-                            selectedEventForPicker = it
-                            showChannelPicker = true
+                grouped.forEach { (date, dateEvents) ->
+                    stickyHeader {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.95f),
+                            shape = MaterialTheme.shapes.extraSmall
+                        ) {
+                            Text(
+                                text = date,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
-                    )
+                    }
+
+                    items(dateEvents) { event ->
+                        ArenaEventRow(event, 
+                            onRowClick = {
+                                selectedEventForPicker = it
+                                showChannelPicker = true
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -324,7 +269,6 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 @Composable
 fun ArenaEventRow(
     event: ArenaEvent, 
-    streams: Map<String, String>, 
     onRowClick: (ArenaEvent) -> Unit
 ) {
     var isFocused by remember { mutableStateOf(value = false) }
@@ -337,7 +281,7 @@ fun ArenaEventRow(
         modifier = Modifier
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
-            .focusable() // Hacer que la fila entera sea enfocable para el mando
+            .focusable()
             .clickable { onRowClick(event) }
             .border(
                 width = if (isFocused) 2.dp else 0.dp,
@@ -347,187 +291,64 @@ fun ArenaEventRow(
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         shape = MaterialTheme.shapes.extraSmall
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // HORA
-            Text(
-                text = event.time,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(0.12f)
-            )
-
-            // DEPORTE
-            Text(
-                text = event.sport,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.weight(0.15f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // EVENTO / COMPETICION
-            Column(modifier = Modifier.weight(0.43f)) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // HORA
                 Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = event.time,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.width(70.dp)
                 )
-                if (event.competition.isNotEmpty()) {
+
+                Column(modifier = Modifier.weight(1f)) {
+                    // DEPORTE - COMPETICION
                     Text(
-                        text = event.competition,
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "${event.sport} - ${event.competition}",
+                        style = MaterialTheme.typography.labelMedium,
                         color = Color.Gray,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-                // Mostrar el primer AceID encontrado para este evento
-                val firstChannelWithStream = event.channels.firstOrNull { streams.containsKey(it) }
-                val firstHash = firstChannelWithStream?.let { streams[it] }?.let { PlayerUtils.getAceId(it) }
-                if (!firstHash.isNullOrEmpty()) {
+                    
+                    // EVENTO
                     Text(
-                        text = "ID: ${firstHash.take(10)}...",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                    )
-                }
-            }
-
-            // CANALES - Usando Row en lugar de LazyRow para evitar problemas de scroll/foco
-            Row(
-                modifier = Modifier.weight(0.3f),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val availableChannels = event.channels.filter { streams.containsKey(it) }
-                if (availableChannels.isNotEmpty()) {
-                    Text(
-                        text = "${availableChannels.size} Canales",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 8.dp)
+                        text = event.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 
                 Icon(
                     Icons.Default.PlayArrow,
-                    contentDescription = "Ver canales",
-                    tint = if (availableChannels.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray,
-                    modifier = Modifier.size(24.dp)
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp).padding(start = 8.dp)
                 )
             }
-        }
-    }
-}
 
-@Composable
-fun ArenaCloneScreen(viewModel: ArenaViewModel = viewModel()) {
-    val events by viewModel.events.collectAsState()
-    val streams by viewModel.streams.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val selectedSource by viewModel.selectedSource.collectAsState()
-    val context = LocalContext.current
+            Spacer(Modifier.height(8.dp))
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        // Title and Source Selection
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Arena Clone",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Row(
-                modifier = Modifier.selectableGroup(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // CANALES CONCATENADOS
+            val channelText = event.channels.joinToString(" / ")
+            Surface(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                shape = MaterialTheme.shapes.extraSmall
             ) {
-                ArenaParser.sources.forEach { source ->
-                    val isSelected = selectedSource == source
-                    var isFocused by remember { mutableStateOf(value = false) }
-                    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, label = "radioScale")
-
-                    Surface(
-                        selected = isSelected,
-                        onClick = { viewModel.setSelectedSource(source) },
-                        modifier = Modifier
-                            .onFocusChanged { isFocused = it.isFocused }
-                            .scale(scale)
-                            .focusable() // Asegurar que sea enfocable
-                            .border(
-                                width = if (isFocused) 2.dp else 0.dp,
-                                color = if (isFocused) Color.White else Color.Transparent,
-                                shape = MaterialTheme.shapes.small
-                            ),
-                        shape = MaterialTheme.shapes.small,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = source.replace("https://", "").replace("http://", "").substringBefore("/"),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Grid Header
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-            shape = MaterialTheme.shapes.extraSmall
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Fecha / Hora", modifier = Modifier.weight(0.2f), fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Evento", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Acción", modifier = Modifier.weight(0.3f), fontWeight = FontWeight.Bold, color = Color.White)
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        // Event List
-        if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(events) { event ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(event.time, modifier = Modifier.weight(0.2f), color = Color.White)
-                        Text(event.title, modifier = Modifier.weight(0.5f), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        IconButton(onClick = {
-                            val channelName = event.channels.firstOrNull()
-                            val streamUrl = channelName?.let { streams[it] }
-                            if (streamUrl != null) {
-                                PlayerUtils.launchAceStream(context, channelName, streamUrl)
-                            } else {
-                                Toast.makeText(context, "Stream no disponible", Toast.LENGTH_SHORT).show()
-                            }
-                        }) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Abrir en AceStream", tint = Color.White)
-                        }
-                    }
-                }
+                Text(
+                    text = channelText,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

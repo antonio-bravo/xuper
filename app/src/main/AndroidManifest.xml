@@ -8,6 +8,7 @@
         <package android:name="org.acestream.media" />
     </queries>
 
+    <!-- Leanback is false to support both Mobile and TV -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
@@ -26,12 +27,17 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Xuper"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:isGame="false"
+        tools:targetApi="31">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Xuper">
+            android:theme="@style/Theme.Xuper"
+            android:screenOrientation="user"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -78,23 +78,30 @@ object M3UParser {
             if (trimmedLine.isEmpty()) continue
 
             if (trimmedLine.startsWith("#EXTINF:")) {
-                // Extract name
-                currentName = trimmedLine.substringAfterLast(",").trim()
+                // Intento robusto de extraer el nombre (después de la última coma)
+                val commaIndex = trimmedLine.lastIndexOf(',')
+                if (commaIndex != -1 && commaIndex < trimmedLine.length - 1) {
+                    currentName = trimmedLine.substring(commaIndex + 1).trim()
+                }
+
+                // Si el nombre sigue vacío o parece una etiqueta, buscamos tvg-name
                 if (currentName.isEmpty() || currentName.startsWith("#")) {
-                    val nameRegex = """tvg-name="([^"]+)"""".toRegex()
+                    val nameRegex = """tvg-name\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
                     currentName = nameRegex.find(trimmedLine)?.groupValues?.get(1) ?: "Canal sin nombre"
                 }
                 
-                val logoRegex = """tvg-logo="([^"]+)"""".toRegex()
+                // Extraer Logo
+                val logoRegex = """tvg-logo\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
                 currentLogo = logoRegex.find(trimmedLine)?.groupValues?.get(1) ?: ""
                 
-                val groupRegex = """group-title="([^"]+)"""".toRegex()
-                val tvgGroupRegex = """tvg-group="([^"]+)"""".toRegex()
+                // Extraer Grupo (Categoría)
+                val groupRegex = """group-title\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
+                val tvgGroupRegex = """tvg-group\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
                 val rawCategory = groupRegex.find(trimmedLine)?.groupValues?.get(1) 
                     ?: tvgGroupRegex.find(trimmedLine)?.groupValues?.get(1) 
                     ?: "Otros"
                 
-                currentCategory = rawCategory.split(";").firstOrNull()?.trim() ?: "Otros"
+                currentCategory = rawCategory.split(";").firstOrNull()?.trim()?.ifEmpty { "Otros" } ?: "Otros"
             } else if (trimmedLine.startsWith("#EXTGRP:")) {
                 currentCategory = trimmedLine.substringAfter(":").split(";").firstOrNull()?.trim() ?: "Otros"
             } else if (!trimmedLine.startsWith("#")) {
