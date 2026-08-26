@@ -91,6 +91,9 @@ fun XuperApp() {
     }
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val useSidebar = isTv || isLandscape
+    
+    // Overscan Safe Area Padding for TV
+    val overscanPadding = if (isTv) 32.dp else 0.dp
 
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(app.repository)
@@ -184,6 +187,7 @@ fun XuperApp() {
     if (isFullScreen && selectedChannel != null) {
         FullScreenPlayer(
             url = selectedChannel!!.url,
+            isTv = isTv,
             onClose = { isFullScreen = false }
         )
     } else {
@@ -222,60 +226,72 @@ fun XuperApp() {
                 }
             }
         ) { paddingValues ->
-            Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                if (useSidebar) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(100.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Spacer(Modifier.height(16.dp))
-                        SidebarItem(selected = currentScreen == Screen.TV, onClick = { currentScreen = Screen.TV }, icon = Icons.Default.Tv, label = stringResourceAI("tv"))
-                        SidebarItem(selected = currentScreen == Screen.FAVORITES, onClick = { currentScreen = Screen.FAVORITES }, icon = Icons.Default.Favorite, label = stringResourceAI("favorites"))
-                        SidebarItem(selected = currentScreen == Screen.ARENA, onClick = { currentScreen = Screen.ARENA }, icon = Icons.Default.SportsSoccer, label = "Arena")
-                        Spacer(Modifier.weight(1f))
-                        SidebarItem(selected = currentScreen == Screen.LISTS, onClick = { currentScreen = Screen.LISTS }, icon = Icons.AutoMirrored.Filled.List, label = stringResourceAI("lists"))
-                        SidebarItem(selected = currentScreen == Screen.XUPER_CONFIG, onClick = { currentScreen = Screen.XUPER_CONFIG }, icon = Icons.Default.Settings, label = stringResourceAI("xuper"))
-                        SidebarItem(selected = false, onClick = { refreshTrigger++ }, icon = Icons.Default.Refresh, label = stringResourceAI("refresh"))
-                        SidebarItem(selected = false, onClick = { filterFocusRequester.requestFocus() }, icon = Icons.Default.FilterList, label = stringResourceAI("filters"))
-                        SidebarItem(selected = false, onClick = { showLanguageDialog = true }, icon = Icons.Default.Language, label = stringResourceAI("language"))
-                        Spacer(Modifier.height(16.dp))
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    when (currentScreen) {
-                        Screen.TV -> {
-                            if (errorMessage != null && currentChannels.isEmpty()) {
-                                ErrorState(errorMessage!!) { refreshTrigger++ }
-                            } else {
-                                MainTvScreen(
-                                    channels = currentChannels,
-                                    selectedChannel = selectedChannel,
-                                    isLoading = isLoading,
-                                    searchQuery = searchQuery,
-                                    onSearchChange = { viewModel.setSearchQuery(it) },
-                                    selectedCategory = selectedCategory,
-                                    onCategoryChange = { viewModel.setSelectedCategory(it) },
-                                    selectedListName = selectedListName,
-                                    onListNameChange = { viewModel.setSelectedListName(it) },
-                                    m3uLists = m3uLists,
-                                    onToggleFavorite = { toggleFavorite(it) },
-                                    onChannelSelected = onPlayChannel,
-                                    onFullScreen = { isFullScreen = true },
-                                    filterFocusRequester = filterFocusRequester
-                                )
-                            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(
+                        start = overscanPadding,
+                        top = overscanPadding / 2, // Less on top usually looks better
+                        end = overscanPadding,
+                        bottom = overscanPadding
+                    )
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    if (useSidebar) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(if (isTv) 120.dp else 100.dp) // Wider sidebar for TV
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Spacer(Modifier.height(16.dp))
+                            SidebarItem(selected = currentScreen == Screen.TV, onClick = { currentScreen = Screen.TV }, icon = Icons.Default.Tv, label = stringResourceAI("tv"))
+                            SidebarItem(selected = currentScreen == Screen.FAVORITES, onClick = { currentScreen = Screen.FAVORITES }, icon = Icons.Default.Favorite, label = stringResourceAI("favorites"))
+                            SidebarItem(selected = currentScreen == Screen.ARENA, onClick = { currentScreen = Screen.ARENA }, icon = Icons.Default.SportsSoccer, label = "Arena")
+                            Spacer(Modifier.weight(1f))
+                            SidebarItem(selected = currentScreen == Screen.LISTS, onClick = { currentScreen = Screen.LISTS }, icon = Icons.AutoMirrored.Filled.List, label = stringResourceAI("lists"))
+                            SidebarItem(selected = currentScreen == Screen.XUPER_CONFIG, onClick = { currentScreen = Screen.XUPER_CONFIG }, icon = Icons.Default.Settings, label = stringResourceAI("xuper"))
+                            SidebarItem(selected = false, onClick = { refreshTrigger++ }, icon = Icons.Default.Refresh, label = stringResourceAI("refresh"))
+                            SidebarItem(selected = false, onClick = { filterFocusRequester.requestFocus() }, icon = Icons.Default.FilterList, label = stringResourceAI("filters"))
+                            SidebarItem(selected = false, onClick = { showLanguageDialog = true }, icon = Icons.Default.Language, label = stringResourceAI("language"))
+                            Spacer(Modifier.height(16.dp))
                         }
-                        Screen.LISTS -> ListsManagementScreen(lists = m3uLists, onSaveLists = saveLists)
-                        Screen.FAVORITES -> FavoritesScreen(channels = favoriteChannels, onToggleFavorite = { toggleFavorite(it) }, onChannelSelected = onPlayChannel)
-                        Screen.ARENA -> ArenaScreen()
-                        Screen.XUPER_CONFIG -> XuperConfigScreen()
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        when (currentScreen) {
+                            Screen.TV -> {
+                                if (errorMessage != null && currentChannels.isEmpty()) {
+                                    ErrorState(errorMessage!!) { refreshTrigger++ }
+                                } else {
+                                    MainTvScreen(
+                                        channels = currentChannels,
+                                        selectedChannel = selectedChannel,
+                                        isLoading = isLoading,
+                                        searchQuery = searchQuery,
+                                        onSearchChange = { viewModel.setSearchQuery(it) },
+                                        selectedCategory = selectedCategory,
+                                        onCategoryChange = { viewModel.setSelectedCategory(it) },
+                                        selectedListName = selectedListName,
+                                        onListNameChange = { viewModel.setSelectedListName(it) },
+                                        m3uLists = m3uLists,
+                                        onToggleFavorite = { toggleFavorite(it) },
+                                        onChannelSelected = onPlayChannel,
+                                        onFullScreen = { isFullScreen = true },
+                                        filterFocusRequester = filterFocusRequester
+                                    )
+                                }
+                            }
+                            Screen.LISTS -> ListsManagementScreen(lists = m3uLists, onSaveLists = saveLists)
+                            Screen.FAVORITES -> FavoritesScreen(channels = favoriteChannels, onToggleFavorite = { toggleFavorite(it) }, onChannelSelected = onPlayChannel)
+                            Screen.ARENA -> ArenaScreen()
+                            Screen.XUPER_CONFIG -> XuperConfigScreen()
+                        }
                     }
                 }
             }
@@ -317,13 +333,17 @@ fun LanguageSelectionDialog(onDismiss: () -> Unit, onLanguageSelected: (AppLangu
 }
 
 @Composable
-fun FullScreenPlayer(url: String, onClose: () -> Unit) {
+fun FullScreenPlayer(url: String, isTv: Boolean = false, onClose: () -> Unit) {
+    val overscanPadding = if (isTv) 24.dp else 0.dp
     BackHandler(onBack = onClose)
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         UniversalPlayer(url = url)
         IconButton(
             onClick = onClose,
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .padding(end = overscanPadding, top = overscanPadding)
         ) {
             Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
         }

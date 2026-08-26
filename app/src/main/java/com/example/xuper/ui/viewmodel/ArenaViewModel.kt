@@ -23,21 +23,43 @@ class ArenaViewModel : ViewModel() {
     val selectedSource: StateFlow<String> = _selectedSource.asStateFlow()
 
     init {
-        loadData()
+        loadData(autoScan = true)
     }
 
     fun setSelectedSource(url: String) {
         _selectedSource.value = url
-        loadData()
+        loadData(autoScan = false)
     }
 
-    fun loadData() {
+    /**
+     * @param autoScan when true, tries every source in order and stops as soon as one
+     * yields events, instead of only fetching the currently selected source.
+     */
+    fun loadData(autoScan: Boolean = false) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val (events, streams) = ArenaParser.fetchArenaData(_selectedSource.value)
-                _events.value = events
-                _streams.value = streams
+                if (autoScan) {
+                    var found = false
+                    for (source in ArenaParser.sources) {
+                        val (events, streams) = ArenaParser.fetchArenaData(source)
+                        if (events.isNotEmpty()) {
+                            _selectedSource.value = source
+                            _events.value = events
+                            _streams.value = streams
+                            found = true
+                            break
+                        }
+                    }
+                    if (!found) {
+                        _events.value = emptyList()
+                        _streams.value = emptyMap()
+                    }
+                } else {
+                    val (events, streams) = ArenaParser.fetchArenaData(_selectedSource.value)
+                    _events.value = events
+                    _streams.value = streams
+                }
             } catch (e: Exception) {
                 _events.value = emptyList()
                 _streams.value = emptyMap()

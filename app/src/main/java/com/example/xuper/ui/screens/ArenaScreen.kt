@@ -10,6 +10,8 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -187,7 +189,10 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
             )
 
             Row(
-                modifier = Modifier.selectableGroup(),
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .horizontalScroll(rememberScrollState())
+                    .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ArenaParser.sources.forEach { source ->
@@ -230,35 +235,41 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
         } else {
             val grouped = remember(events) { events.groupBy { it.date } }
             
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 32.dp)
-            ) {
-                grouped.forEach { (date, dateEvents) ->
-                    stickyHeader {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.95f),
-                            shape = MaterialTheme.shapes.extraSmall
-                        ) {
-                            Text(
-                                text = date,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.primary
+            if (events.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No hay eventos disponibles en esta fuente", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp)
+                ) {
+                    grouped.forEach { (date, dateEvents) ->
+                        stickyHeader {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.95f),
+                                shape = MaterialTheme.shapes.extraSmall
+                            ) {
+                                Text(
+                                    text = date,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        items(dateEvents) { event ->
+                            ArenaEventRow(event, 
+                                onRowClick = {
+                                    selectedEventForPicker = it
+                                    showChannelPicker = true
+                                }
                             )
                         }
-                    }
-
-                    items(dateEvents) { event ->
-                        ArenaEventRow(event, 
-                            onRowClick = {
-                                selectedEventForPicker = it
-                                showChannelPicker = true
-                            }
-                        )
                     }
                 }
             }

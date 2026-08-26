@@ -23,6 +23,7 @@ object ArenaParser {
 
     val sources = listOf(
         "https://arena4viewer.in/misguia2.php",
+        "https://www.arena4viewer.pl/misguia2.php",
         "https://www.arena4viewer.ru/misguia2.php",
         "https://www.arena4viewer.app/misguia2.php",
         "https://www.arena4viewer.co.in/misguia2.php",
@@ -61,7 +62,6 @@ object ArenaParser {
             "User-Agent" to "Dalvik/2.1.0 (Linux; U; Android 14; Pixel 7 Build/UQ1A.231205.015)",
             "X-Requested-With" to "com.bone.android.a4v.oficial",
             "Content-Type" to "application/x-www-form-urlencoded",
-            "Accept-Encoding" to "gzip",
             "Connection" to "Keep-Alive"
         )
 
@@ -103,37 +103,41 @@ object ArenaParser {
             streamsMap["AV$num"] = hash
         }
 
-        // Parse Agenda (Table)
+        // Parse Agenda
         val groupedEvents = mutableMapOf<String, ArenaEvent>()
         var currentDay = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
         
         val doc = Jsoup.parse(html)
-        val table = doc.select("table").firstOrNull()
-        table?.select("tr")?.forEach { row ->
+        // Buscamos todas las filas en el documento, no solo en la primera tabla
+        val rows = doc.select("tr")
+        
+        rows.forEach { row ->
             val cells = row.select("td, th")
             if (cells.size >= 5) {
                 val cleanCells = cells.map { it.text().trim() }
-                val hasDate = cleanCells.size >= 6 && cleanCells[0].contains("/")
                 
+                // Detectar fecha
+                val hasDate = cleanCells.size >= 6 && cleanCells[0].contains("/")
                 if (hasDate) {
                     currentDay = cleanCells[0]
                 }
                 
                 val offset = if (hasDate) 1 else 0
                 val timeStr = cleanCells[offset]
-                val sport = cleanCells[offset + 1].uppercase()
-                val competition = cleanCells[offset + 2].uppercase()
-                val eventName = cleanCells[offset + 3]
-                val liveList = cleanCells[offset + 4]
+                
+                // Validar que la celda de tiempo contenga una hora (HH:MM)
+                if (Regex("""\d{1,2}:\d{2}""").find(timeStr) != null) {
+                    val sport = cleanCells[offset + 1].uppercase()
+                    val competition = cleanCells[offset + 2].uppercase()
+                    val eventName = cleanCells[offset + 3]
+                    val liveList = cleanCells[offset + 4]
 
-                if (timeStr.contains(":")) {
                     val avNums = Regex("""\d+""").findAll(liveList).map { "AV${it.value}" }.toList()
                     if (avNums.isNotEmpty()) {
                         val key = "$currentDay|$timeStr|$eventName"
                         val existing = groupedEvents[key]
                         
                         if (existing != null) {
-                            // Merge channels avoiding duplicates
                             val newChannels = (existing.channels + avNums).distinct().sortedBy { 
                                 it.replace("AV", "").toIntOrNull() ?: 999 
                             }
