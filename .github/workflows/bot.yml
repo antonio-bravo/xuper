@@ -20,18 +20,12 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Enable auto-merge for Dependabot PRs
-        # if: contains(steps.metadata.outputs.dependency-names, 'my-dependency') && steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        # major bumps are left for manual review, patch/minor merge automatically
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
-  renovate:
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.user.login == 'renovate[bot]'
-    steps:
-      - name: Enable auto-merge for Renovate PRs
-        run: gh pr merge --auto --merge "$PR_URL"
-        env:
-          PR_URL: ${{github.event.pull_request.html_url}}
-          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  # Renovate PRs are auto-merged via platformAutomerge in renovate.json, which
+  # only flags patch/minor/digest updates, so no separate job is needed here.
