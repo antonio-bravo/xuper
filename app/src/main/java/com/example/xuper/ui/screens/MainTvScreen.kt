@@ -151,7 +151,7 @@ fun MainTvScreen(
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = Color.White,
-                        labelColor = Color.Gray
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
@@ -184,7 +184,7 @@ fun MainTvScreen(
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = Color.White,
-                        labelColor = Color.Gray
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
@@ -241,7 +241,7 @@ fun MainTvScreen(
                 Column {
                     Text(stringResourceAI("select_player"))
                     if (channel.category != "Otros") {
-                        Text("${stringResourceAI("category")}: ${channel.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("${stringResourceAI("category")}: ${channel.category}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
@@ -349,7 +349,7 @@ fun MainTvScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showPlayerDialog = null }) {
-                    Text(stringResourceAI("cancel"), color = Color.Gray)
+                    Text(stringResourceAI("cancel"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
         )

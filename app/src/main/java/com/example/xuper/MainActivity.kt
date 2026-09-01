@@ -60,11 +60,16 @@ class MainActivity : ComponentActivity() {
 fun XuperTheme(content: @Composable () -> Unit) {
     val xuperColors = darkColorScheme(
         primary = Color(0xFF00A8FF),
-        secondary = Color(0xFF191919),
-        surface = Color(0xFF121212),
-        background = Color(0xFF0A0A0A),
         onPrimary = Color.White,
+        primaryContainer = Color(0xFF004A77),
+        onPrimaryContainer = Color.White,
+        secondary = Color(0xFF191919),
+        onSecondary = Color.White,
+        surface = Color(0xFF121212),
         onSurface = Color.White,
+        surfaceVariant = Color(0xFF2A2A2A),
+        onSurfaceVariant = Color.LightGray,
+        background = Color(0xFF0A0A0A),
         onBackground = Color.White,
     )
     MaterialTheme(

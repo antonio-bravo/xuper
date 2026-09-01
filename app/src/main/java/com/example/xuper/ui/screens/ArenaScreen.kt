@@ -321,7 +321,7 @@ fun ArenaEventRow(
                     Text(
                         text = "${event.sport} - ${event.competition}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -331,6 +331,7 @@ fun ArenaEventRow(
                     Text(
                         text = event.title,
                         style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
