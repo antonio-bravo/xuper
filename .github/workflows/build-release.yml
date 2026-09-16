@@ -48,8 +48,10 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle' # Añadido para acelerar builds futuros
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v4
+    # - name: Setup Android SDK
+    #   uses: android-actions/setup-android@v4
+    - name: Accept Android SDK Licenses
+      run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
