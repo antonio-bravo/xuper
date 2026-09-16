@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Fondo oscuro corporativo compatible con Android TV (16:9) -->
+    <path
+        android:fillColor="#0A0A0A"
+        android:pathData="M0,0 h320 v180 h-320 Z" />
+
+    <!-- Gradiente de fondo o detalles sutiles geométricos (Luz de enfoque azul) -->
+    <path
+        android:fillColor="#004A77"
+        android:pathData="M0,120 Q160,60 320,120 L320,180 L0,180 Z" />
+
+    <!-- Icono de Xuper estilizado y centrado en la zona izquierda/centro -->
+    <path
+        android:fillColor="#00A8FF"
+        android:pathData="M130,50 L145,50 L160,74 L175,50 L190,50 L172,88 L190,126 L175,126 L160,102 L145,126 L130,126 L148,88 Z" />
+
+</vector>

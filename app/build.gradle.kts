@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -59,6 +60,18 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     
+    // Navigation 3
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+
+    // Adaptive Layouts
+    implementation(libs.androidx.adaptive)
+    implementation(libs.androidx.adaptive.layout)
+    implementation(libs.androidx.adaptive.navigation)
+    implementation(libs.androidx.adaptive.navigation3)
+    implementation(libs.androidx.material3.adaptive.navigation.suite)
+
     // Media3 (ExoPlayer)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)

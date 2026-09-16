@@ -14,5 +14,6 @@ data class Channel(
 data class M3UList(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val url: String
+    val url: String,
+    val enabled: Boolean = true
 )

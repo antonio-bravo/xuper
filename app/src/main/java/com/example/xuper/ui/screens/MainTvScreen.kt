@@ -47,6 +47,7 @@ fun MainTvScreen(
     onChannelSelected: (Channel?) -> Unit,
     onFullScreen: () -> Unit,
     filterFocusRequester: FocusRequester,
+    onRefreshM3U: () -> Unit,
 ) {
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
     val context = LocalContext.current
@@ -125,35 +126,61 @@ fun MainTvScreen(
             }
         }
 
-        // Filtro de Listas
+        // Filtro de Listas (Solo las activas/enabled)
         val listSources = remember(m3uLists) {
-            listOf(LanguageManager.getString("all_lists")) + m3uLists.map { it.name }
+            listOf(LanguageManager.getString("all_lists")) + m3uLists.filter { it.enabled }.map { it.name }
         }
-        LazyRow(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            items(listSources.size) { index ->
-                val name = listSources[index]
-                var isFocused by remember { mutableStateOf(value = false) }
-                val chipScale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "chipScale")
-                FilterChip(
-                    selected = selectedListName == name,
-                    onClick = { onListNameChange(name) },
-                    label = { Text(name) },
-                    modifier = Modifier
-                        .padding(end = 4.dp)
-                        .then(if (index == 0) Modifier.focusRequester(filterFocusRequester) else Modifier)
-                        .onFocusChanged { isFocused = it.isFocused }
-                        .scale(chipScale)
-                        .border(
-                            width = if (isFocused) 3.dp else 0.dp,
-                            color = if (isFocused) Color.White else Color.Transparent,
-                            shape = MaterialTheme.shapes.small
-                        ),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            var isTvRefreshFocused by remember { mutableStateOf(false) }
+            val tvRefreshScale by animateFloatAsState(if (isTvRefreshFocused) 1.15f else 1f, label = "tvRefreshScale")
+            IconButton(
+                onClick = onRefreshM3U,
+                modifier = Modifier
+                    .onFocusChanged { isTvRefreshFocused = it.isFocused }
+                    .scale(tvRefreshScale)
+                    .border(
+                        width = if (isTvRefreshFocused) 2.dp else 0.dp,
+                        color = if (isTvRefreshFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        shape = CircleShape
+                    ),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (isTvRefreshFocused) Color.White else Color.Transparent,
+                    contentColor = if (isTvRefreshFocused) Color.Black else MaterialTheme.colorScheme.primary
                 )
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refrescar Listas")
+            }
+
+            LazyRow(modifier = Modifier.weight(1f)) {
+                items(listSources.size) { index ->
+                    val name = listSources[index]
+                    var isFocused by remember { mutableStateOf(value = false) }
+                    val chipScale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "chipScale")
+                    FilterChip(
+                        selected = selectedListName == name,
+                        onClick = { onListNameChange(name) },
+                        label = { Text(name) },
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .then(if (index == 0) Modifier.focusRequester(filterFocusRequester) else Modifier)
+                            .onFocusChanged { isFocused = it.isFocused }
+                            .scale(chipScale)
+                            .border(
+                                width = if (isFocused) 3.dp else 0.dp,
+                                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                shape = MaterialTheme.shapes.small
+                            ),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color.White,
+                            selectedLabelColor = Color.Black,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
             }
         }
 
@@ -178,12 +205,12 @@ fun MainTvScreen(
                         .scale(catScale)
                         .border(
                             width = if (isFocused) 3.dp else 0.dp,
-                            color = if (isFocused) Color.White else Color.Transparent,
+                            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                             shape = MaterialTheme.shapes.small
                         ),
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White,
+                        selectedContainerColor = Color.White,
+                        selectedLabelColor = Color.Black,
                         labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
@@ -261,12 +288,12 @@ fun MainTvScreen(
                             .scale(intScale)
                             .border(
                                 width = if (isIntFocused) 4.dp else 0.dp,
-                                color = if (isIntFocused) Color.White else Color.Transparent,
+                                color = if (isIntFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isIntFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                            contentColor = if (isIntFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                            containerColor = if (isIntFocused) Color.White else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isIntFocused) Color.Black else Color.White,
                         ),
                     ) {
                         Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
@@ -306,12 +333,12 @@ fun MainTvScreen(
                             .scale(extScale)
                             .border(
                                 width = if (isExtFocused) 4.dp else 0.dp,
-                                color = if (isExtFocused) Color.White else Color.Transparent,
+                                color = if (isExtFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isExtFocused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f),
-                            contentColor = if (isExtFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                            containerColor = if (isExtFocused) Color.White else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isExtFocused) Color.Black else Color.White,
                         ),
                     ) {
                         Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
@@ -329,18 +356,19 @@ fun MainTvScreen(
                             .scale(favScale)
                             .border(
                                 width = if (isFavFocused) 4.dp else 0.dp,
-                                color = if (isFavFocused) Color.White else Color.Transparent,
+                                color = if (isFavFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (isFavFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                            containerColor = if (isFavFocused) Color.White else Color.Transparent,
+                            contentColor = if (isFavFocused) Color.Black else Color.White,
                         ),
                     ) {
                         Icon(
                             if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (channel.isFavorite) Color.Red else if (isFavFocused) Color.Gray else Color.Gray.copy(alpha = 0.5f),
+                            tint = if (channel.isFavorite) Color.Red else if (isFavFocused) Color.Black else Color.Gray,
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(if (channel.isFavorite) stringResourceAI("remove_favorite") else stringResourceAI("add_favorite"))

@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.xuper.model.M3UList
 
@@ -45,13 +46,23 @@ fun ListsManagementScreen(
             }
         }
         
-        LazyColumn {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items(lists) { list ->
                 ListItem(
                     headlineContent = { Text(list.name) },
-                    supportingContent = { Text(list.url) },
+                    supportingContent = { Text(list.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingContent = {
+                        Switch(
+                            checked = list.enabled,
+                            onCheckedChange = { isChecked ->
+                                onSaveLists(lists.map { 
+                                    if (it.id == list.id) it.copy(enabled = isChecked) else it
+                                })
+                            }
+                        )
+                    },
                     trailingContent = {
-                        Row {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             var isEditFocused by remember { mutableStateOf(value = false) }
                             IconButton(
                                 onClick = {

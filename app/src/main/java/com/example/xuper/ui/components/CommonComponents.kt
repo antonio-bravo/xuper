@@ -162,12 +162,17 @@ fun SidebarItem(
     val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "scale")
     val backgroundColor by animateColorAsState(
         targetValue = when {
+            selected -> Color.White
             isFocused -> MaterialTheme.colorScheme.primary
-            selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
             else -> Color.Transparent
         },
         label = "bg"
     )
+    val contentColor = when {
+        selected -> Color.Black
+        isFocused -> Color.White
+        else -> Color.Gray
+    }
 
     Surface(
         onClick = onClick,
@@ -178,7 +183,7 @@ fun SidebarItem(
             .scale(scale)
             .border(
                 width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) Color.White else Color.Transparent,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                 shape = RoundedCornerShape(8.dp)
             ),
         color = backgroundColor,
@@ -191,13 +196,13 @@ fun SidebarItem(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (isFocused || selected) Color.White else Color.Gray,
+                tint = contentColor,
                 modifier = Modifier.size(24.dp)
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (isFocused || selected) Color.White else Color.Gray,
+                color = contentColor,
                 maxLines = 1
             )
         }

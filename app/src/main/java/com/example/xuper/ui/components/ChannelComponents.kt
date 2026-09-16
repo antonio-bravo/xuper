@@ -6,8 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -116,12 +117,17 @@ fun ChannelList(
     onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 300.dp),
         contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
-        items(channels) { channel ->
+        items(
+            items = channels,
+            key = { it.url + it.name }
+        ) { channel ->
             ChannelCard(
                 channel = channel,
                 onChannelSelected = onChannelSelected,

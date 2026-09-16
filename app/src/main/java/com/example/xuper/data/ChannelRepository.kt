@@ -19,6 +19,10 @@ class ChannelRepository(private val channelDao: ChannelDao) {
         channelDao.insertChannels(channels.map { it.toEntity(sourceName) })
     }
 
+    suspend fun clearChannelsBySource(sourceName: String) {
+        channelDao.deleteChannelsBySource(sourceName)
+    }
+
     suspend fun toggleFavorite(channel: Channel, isFavorite: Boolean) {
         channelDao.updateFavoriteStatus(channel.url, isFavorite)
     }

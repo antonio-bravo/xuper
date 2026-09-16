@@ -7,6 +7,7 @@ import com.example.xuper.model.Channel
 import com.example.xuper.model.M3UList
 import com.example.xuper.data.M3UParser
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -34,8 +35,9 @@ class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
     private val _selectedListName = MutableStateFlow("Todas las listas")
     val selectedListName = _selectedListName.asStateFlow()
 
+    @OptIn(FlowPreview::class)
     val filteredChannels: StateFlow<List<Channel>> = combine(
-        searchQuery,
+        searchQuery.debounce(300),
         selectedCategory,
         selectedListName,
         allChannels, // This triggers refresh when DB changes
@@ -64,8 +66,13 @@ class MainViewModel(private val repository: ChannelRepository) : ViewModel() {
             _errorMessage.value = null
             try {
                 for (source in m3uLists) {
-                    val fetched = M3UParser.fetchAndParse(source.url, source.name)
-                    repository.refreshChannels(fetched, source.name)
+                    if (source.enabled) {
+                        val fetched = M3UParser.fetchAndParse(source.url, source.name)
+                        repository.refreshChannels(fetched, source.name)
+                    } else {
+                        // If the list is disabled, ensure its channels are removed from DB
+                        repository.clearChannelsBySource(source.name)
+                    }
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "Error al cargar canales: ${e.localizedMessage}"

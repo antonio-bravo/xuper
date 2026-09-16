@@ -10,13 +10,16 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +38,9 @@ import com.example.xuper.model.ArenaEvent
 import com.example.xuper.ui.components.UniversalPlayer
 import com.example.xuper.ui.viewmodel.ArenaViewModel
 import com.example.xuper.util.PlayerUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -72,6 +78,9 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                             val hash = streams[channelName]
                             val isAvailable = hash != null
                             
+                            var isItemFocused by remember { mutableStateOf(false) }
+                            val itemScale by animateFloatAsState(if (isItemFocused) 1.04f else 1f, label = "itemScale")
+                            
                             Card(
                                 onClick = {
                                     if (isAvailable) {
@@ -81,9 +90,22 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                                         showUrlDialog = true
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .onFocusChanged { isItemFocused = it.isFocused }
+                                    .scale(itemScale)
+                                    .border(
+                                        width = if (isItemFocused) 3.dp else 0.dp,
+                                        color = if (isItemFocused) Color.White else Color.Transparent,
+                                        shape = MaterialTheme.shapes.medium
+                                    ),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isAvailable) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    containerColor = when {
+                                        isItemFocused -> Color.White
+                                        isAvailable -> MaterialTheme.colorScheme.surfaceVariant
+                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    }
                                 ),
                                 enabled = isAvailable
                             ) {
@@ -94,13 +116,17 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                                     Icon(
                                         if (isAvailable) Icons.Default.PlayArrow else Icons.Default.ContentCopy, 
                                         contentDescription = null, 
-                                        tint = if (isAvailable) MaterialTheme.colorScheme.primary else Color.Gray
+                                        tint = when {
+                                            isItemFocused -> Color.Black
+                                            isAvailable -> MaterialTheme.colorScheme.primary
+                                            else -> Color.Gray
+                                        }
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         text = channelName, 
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
+                                        color = if (isItemFocused) Color.Black else if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
                                     )
                                 }
                             }
@@ -146,21 +172,50 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
             confirmButton = {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        var isBtnIntFocused by remember { mutableStateOf(false) }
+                        val scaleInt by animateFloatAsState(if (isBtnIntFocused) 1.05f else 1f, label = "scaleInt")
                         Button(
                             onClick = {
                                 showUrlDialog = false
                                 internalPlayerUrl = displayUrl
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isBtnIntFocused = it.isFocused }
+                                .scale(scaleInt)
+                                .border(
+                                    width = if (isBtnIntFocused) 3.dp else 0.dp,
+                                    color = if (isBtnIntFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = ButtonDefaults.shape
+                                ),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isBtnIntFocused) Color.White else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isBtnIntFocused) Color.Black else Color.White
+                            )
                         ) {
                             Text("Interno")
                         }
+
+                        var isBtnExtFocused by remember { mutableStateOf(false) }
+                        val scaleExt by animateFloatAsState(if (isBtnExtFocused) 1.05f else 1f, label = "scaleExt")
                         Button(
                             onClick = {
                                 showUrlDialog = false
                                 PlayerUtils.launchAceStream(context, pendingChannelName, pendingUrl)
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isBtnExtFocused = it.isFocused }
+                                .scale(scaleExt)
+                                .border(
+                                    width = if (isBtnExtFocused) 3.dp else 0.dp,
+                                    color = if (isBtnExtFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = ButtonDefaults.shape
+                                ),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isBtnExtFocused) Color.White else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isBtnExtFocused) Color.Black else Color.White
+                            )
                         ) {
                             Text("Externo")
                         }
@@ -176,17 +231,52 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        val lastFetchTimeStr by viewModel.lastFetchTimeString.collectAsState()
+        
         // Title and Source Selection
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Arena4Viewer",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Arena4Viewer",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                if (lastFetchTimeStr.isNotEmpty()) {
+                    Text(
+                        text = "Refrescado: $lastFetchTimeStr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+
+                var isIconRefreshFocused by remember { mutableStateOf(false) }
+                val iconRefreshScale by animateFloatAsState(if (isIconRefreshFocused) 1.15f else 1f, label = "iconRefreshScale")
+                IconButton(
+                    onClick = { viewModel.loadData(autoScan = true, forceRefresh = true) },
+                    modifier = Modifier
+                        .onFocusChanged { isIconRefreshFocused = it.isFocused }
+                        .scale(iconRefreshScale)
+                        .border(
+                            width = if (isIconRefreshFocused) 2.dp else 0.dp,
+                            color = if (isIconRefreshFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape
+                        ),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = if (isIconRefreshFocused) Color.White else Color.Transparent,
+                        contentColor = if (isIconRefreshFocused) Color.Black else MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Forzar Actualización")
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -209,17 +299,17 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                             .focusable()
                             .border(
                                 width = if (isFocused) 2.dp else 0.dp,
-                                color = if (isFocused) Color.White else Color.Transparent,
+                                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 shape = MaterialTheme.shapes.small
                             ),
                         shape = MaterialTheme.shapes.small,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
                             text = source.replace("https://", "").replace("http://", "").substringBefore("/"),
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -240,7 +330,30 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                     Text("No hay eventos disponibles en esta fuente", color = Color.Gray)
                 }
             } else {
+                val listState = rememberLazyListState()
+                
+                // Efecto para buscar y scrollear automáticamente al día de hoy
+                LaunchedEffect(grouped) {
+                    val targetDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                    var targetIndex = 0
+                    var found = false
+                    
+                    for ((date, dateEvents) in grouped) {
+                        if (date == targetDate) {
+                            found = true
+                            break
+                        }
+                        // Cada grupo suma 1 por el stickyHeader + el número de eventos correspondientes
+                        targetIndex += 1 + dateEvents.size
+                    }
+                    
+                    if (found) {
+                        listState.scrollToItem(targetIndex)
+                    }
+                }
+
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 32.dp)
@@ -283,10 +396,6 @@ fun ArenaEventRow(
     onRowClick: (ArenaEvent) -> Unit
 ) {
     var isFocused by remember { mutableStateOf(value = false) }
-    val backgroundColor by animateColorAsState(
-        if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        label = "rowBg"
-    )
 
     Card(
         modifier = Modifier
@@ -295,12 +404,14 @@ fun ArenaEventRow(
             .focusable()
             .clickable { onRowClick(event) }
             .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) Color.White else Color.Transparent,
-                shape = MaterialTheme.shapes.extraSmall
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = MaterialTheme.shapes.small
             ),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        shape = MaterialTheme.shapes.extraSmall
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color.White else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        ),
+        shape = MaterialTheme.shapes.small
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -312,7 +423,7 @@ fun ArenaEventRow(
                     text = event.time,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (isFocused) Color.Black else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.width(70.dp)
                 )
 
@@ -321,7 +432,7 @@ fun ArenaEventRow(
                     Text(
                         text = "${event.sport} - ${event.competition}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isFocused) Color.DarkGray else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -331,7 +442,7 @@ fun ArenaEventRow(
                     Text(
                         text = event.title,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -341,7 +452,7 @@ fun ArenaEventRow(
                 Icon(
                     Icons.Default.PlayArrow,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = if (isFocused) Color.Black else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp).padding(start = 8.dp)
                 )
             }
