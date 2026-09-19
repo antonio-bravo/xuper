@@ -3,9 +3,12 @@ package com.example.xuper.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
@@ -35,7 +38,7 @@ fun ChannelCard(
     var isFocused by remember { mutableStateOf(value = false) }
     val isFavorite = channel.isFavorite
     
-    val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "scale")
+    val scale by animateFloatAsState(if (isFocused) 1.02f else 1f, label = "scale")
     
     Card(
         modifier = modifier
@@ -58,13 +61,13 @@ fun ChannelCard(
     ) {
         Row(
             modifier = Modifier
-                .padding(8.dp)
+                .padding(12.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
+                    .size(52.dp)
                     .background(Color.Black.copy(alpha = 0.3f), shape = MaterialTheme.shapes.medium),
                 contentAlignment = Alignment.Center,
             ) {
@@ -72,7 +75,7 @@ fun ChannelCard(
                     AsyncImage(
                         model = channel.logo,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(42.dp),
                     )
                 } else {
                     Text(
@@ -90,13 +93,24 @@ fun ChannelCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        repeatDelayMillis = 1200
+                    )
                 )
-                Text(
-                    text = channel.category,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
+                if (channel.category.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = channel.category,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            repeatDelayMillis = 2000
+                        )
+                    )
+                }
             }
             IconButton(onClick = { onToggleFavorite(channel) }) {
                 Icon(
@@ -116,23 +130,43 @@ fun ChannelList(
     onChannelSelected: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier = Modifier,
+    isSingleColumn: Boolean = true
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 300.dp),
-        contentPadding = PaddingValues(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier,
-    ) {
-        items(
-            items = channels,
-            key = { it.url + it.name }
-        ) { channel ->
-            ChannelCard(
-                channel = channel,
-                onChannelSelected = onChannelSelected,
-                onToggleFavorite = onToggleFavorite,
-            )
+    if (isSingleColumn) {
+        LazyColumn(
+            contentPadding = PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = modifier,
+        ) {
+            items(
+                items = channels,
+                key = { it.url + it.name }
+            ) { channel ->
+                ChannelCard(
+                    channel = channel,
+                    onChannelSelected = onChannelSelected,
+                    onToggleFavorite = onToggleFavorite,
+                )
+            }
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 300.dp),
+            contentPadding = PaddingValues(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = modifier,
+        ) {
+            items(
+                items = channels,
+                key = { it.url + it.name }
+            ) { channel ->
+                ChannelCard(
+                    channel = channel,
+                    onChannelSelected = onChannelSelected,
+                    onToggleFavorite = onToggleFavorite,
+                )
+            }
         }
     }
 }

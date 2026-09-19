@@ -37,7 +37,11 @@ import com.example.xuper.data.ArenaParser
 import com.example.xuper.model.ArenaEvent
 import com.example.xuper.ui.components.UniversalPlayer
 import com.example.xuper.ui.viewmodel.ArenaViewModel
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.example.xuper.util.PlayerUtils
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,7 +65,33 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     var showChannelPicker by remember { mutableStateOf(false) }
     var selectedEventForPicker by remember { mutableStateOf<ArenaEvent?>(null) }
 
+    val firstChannelFocusRequester = remember { FocusRequester() }
+    val urlInternalBtnFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(showChannelPicker) {
+        if (showChannelPicker) {
+            delay(200)
+            try {
+                firstChannelFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
+    LaunchedEffect(showUrlDialog) {
+        if (showUrlDialog) {
+            delay(200)
+            try {
+                urlInternalBtnFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
     if (showChannelPicker && selectedEventForPicker != null) {
+        val firstAvailableIndex = remember(selectedEventForPicker, streams) {
+            val idx = selectedEventForPicker?.channels?.indexOfFirst { streams[it] != null } ?: -1
+            if (idx >= 0) idx else 0
+        }
+
         AlertDialog(
             onDismissRequest = { showChannelPicker = false },
             title = { 
@@ -71,10 +101,16 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                 }
             },
             text = {
+                LaunchedEffect(Unit) {
+                    delay(100)
+                    try {
+                        firstChannelFocusRequester.requestFocus()
+                    } catch (_: Exception) {}
+                }
                 Column {
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                        items(selectedEventForPicker!!.channels) { channelName ->
+                        itemsIndexed(selectedEventForPicker!!.channels) { index, channelName ->
                             val hash = streams[channelName]
                             val isAvailable = hash != null
                             
@@ -93,6 +129,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
+                                    .then(if (index == firstAvailableIndex) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
                                     .onFocusChanged { isItemFocused = it.isFocused }
                                     .scale(itemScale)
                                     .border(
@@ -136,7 +173,23 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showChannelPicker = false }) {
+                var isCancelPickerFocused by remember { mutableStateOf(false) }
+                val cancelPickerScale by animateFloatAsState(if (isCancelPickerFocused) 1.1f else 1f, label = "cancelPickerScale")
+                OutlinedButton(
+                    onClick = { showChannelPicker = false },
+                    modifier = Modifier
+                        .onFocusChanged { isCancelPickerFocused = it.isFocused }
+                        .scale(cancelPickerScale)
+                        .border(
+                            width = if (isCancelPickerFocused) 3.dp else 0.dp,
+                            color = if (isCancelPickerFocused) Color.White else Color.Transparent,
+                            shape = ButtonDefaults.shape
+                        ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isCancelPickerFocused) Color.White else Color.Transparent,
+                        contentColor = if (isCancelPickerFocused) Color.Black else MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
                     Text("Cancelar")
                 }
             }
@@ -181,6 +234,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                             },
                             modifier = Modifier
                                 .weight(1f)
+                                .focusRequester(urlInternalBtnFocusRequester)
                                 .onFocusChanged { isBtnIntFocused = it.isFocused }
                                 .scale(scaleInt)
                                 .border(
@@ -223,7 +277,23 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUrlDialog = false }) {
+                var isCancelUrlFocused by remember { mutableStateOf(false) }
+                val cancelUrlScale by animateFloatAsState(if (isCancelUrlFocused) 1.1f else 1f, label = "cancelUrlScale")
+                OutlinedButton(
+                    onClick = { showUrlDialog = false },
+                    modifier = Modifier
+                        .onFocusChanged { isCancelUrlFocused = it.isFocused }
+                        .scale(cancelUrlScale)
+                        .border(
+                            width = if (isCancelUrlFocused) 3.dp else 0.dp,
+                            color = if (isCancelUrlFocused) Color.White else Color.Transparent,
+                            shape = ButtonDefaults.shape
+                        ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isCancelUrlFocused) Color.White else Color.Transparent,
+                        contentColor = if (isCancelUrlFocused) Color.Black else MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
                     Text("Cancelar")
                 }
             }

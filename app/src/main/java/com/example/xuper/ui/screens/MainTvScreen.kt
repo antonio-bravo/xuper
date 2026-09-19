@@ -50,6 +50,7 @@ fun MainTvScreen(
     onRefreshM3U: () -> Unit,
 ) {
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
+    var isSingleColumn by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
     Column {
@@ -155,6 +156,29 @@ fun MainTvScreen(
                 Icon(Icons.Default.Refresh, contentDescription = "Refrescar Listas")
             }
 
+            var isToggleLayoutFocused by remember { mutableStateOf(false) }
+            val toggleLayoutScale by animateFloatAsState(if (isToggleLayoutFocused) 1.15f else 1f, label = "toggleLayoutScale")
+            IconButton(
+                onClick = { isSingleColumn = !isSingleColumn },
+                modifier = Modifier
+                    .onFocusChanged { isToggleLayoutFocused = it.isFocused }
+                    .scale(toggleLayoutScale)
+                    .border(
+                        width = if (isToggleLayoutFocused) 2.dp else 0.dp,
+                        color = if (isToggleLayoutFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        shape = CircleShape
+                    ),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (isToggleLayoutFocused) Color.White else Color.Transparent,
+                    contentColor = if (isToggleLayoutFocused) Color.Black else MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(
+                    imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
+                    contentDescription = "Cambiar vista"
+                )
+            }
+
             LazyRow(modifier = Modifier.weight(1f)) {
                 items(listSources.size) { index ->
                     val name = listSources[index]
@@ -231,6 +255,7 @@ fun MainTvScreen(
             channels = filteredChannels,
             onChannelSelected = { showPlayerDialog = it },
             onToggleFavorite = onToggleFavorite,
+            isSingleColumn = isSingleColumn,
             modifier = Modifier.weight(1f)
         )
 
