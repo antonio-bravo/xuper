@@ -35,11 +35,21 @@ fun ChannelCard(
     onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var isFocused by remember { mutableStateOf(value = false) }
+    var isFocused by remember { mutableStateOf(false) }
     val isFavorite = channel.isFavorite
-    
-    val scale by animateFloatAsState(if (isFocused) 1.02f else 1f, label = "scale")
-    
+
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.03f else 1f,
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "cardScale"
+    )
+
+    val elevation by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (isFocused) 12.dp else 2.dp,
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "cardElevation"
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -47,7 +57,7 @@ fun ChannelCard(
             .scale(scale)
             .border(
                 width = if (isFocused) 3.dp else 0.dp,
-                color = if (isFocused) Color.White else Color.Transparent,
+                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                 shape = MaterialTheme.shapes.medium,
             )
             .combinedClickable(
@@ -55,9 +65,12 @@ fun ChannelCard(
                 onLongClick = { onToggleFavorite(channel) },
             ),
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondary,
+            containerColor = when {
+                isFocused -> com.example.xuper.ui.theme.FocusBackground
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            },
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isFocused) 12.dp else 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
     ) {
         Row(
             modifier = Modifier
@@ -90,7 +103,7 @@ fun ChannelCard(
                 Text(
                     text = channel.name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.basicMarquee(
@@ -103,7 +116,7 @@ fun ChannelCard(
                     Text(
                         text = channel.category,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isFocused) Color.DarkGray else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         modifier = Modifier.basicMarquee(
                             iterations = Int.MAX_VALUE,
@@ -130,12 +143,21 @@ fun ChannelList(
     onChannelSelected: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier = Modifier,
-    isSingleColumn: Boolean = true
+    isSingleColumn: Boolean = true,
+    isLoading: Boolean = false
 ) {
-    if (isSingleColumn) {
+    if (isLoading) {
+        ChannelListSkeleton()
+        return
+    }
+
+    val layoutConfig = rememberAdaptiveLayoutConfig()
+    val gridColumns = if (isSingleColumn) 1 else layoutConfig.gridColumns
+
+    if (gridColumns == 1) {
         LazyColumn(
-            contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(layoutConfig.contentPadding),
+            verticalArrangement = Arrangement.spacedBy(layoutConfig.itemSpacing),
             modifier = modifier,
         ) {
             items(
@@ -151,10 +173,10 @@ fun ChannelList(
         }
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 300.dp),
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            columns = GridCells.Fixed(gridColumns),
+            contentPadding = PaddingValues(layoutConfig.contentPadding),
+            horizontalArrangement = Arrangement.spacedBy(layoutConfig.itemSpacing),
+            verticalArrangement = Arrangement.spacedBy(layoutConfig.itemSpacing),
             modifier = modifier,
         ) {
             items(

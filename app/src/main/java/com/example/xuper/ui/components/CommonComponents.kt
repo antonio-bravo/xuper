@@ -39,6 +39,8 @@ import com.example.xuper.util.PlayerUtils
 fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
+    val aceStreamManager = remember { com.example.xuper.data.AceStreamManager(context) }
+    val config = remember { aceStreamManager.getConfig() }
 
     // Mantener la pantalla encendida mientras el reproductor esté activo
     DisposableEffect(Unit) {
@@ -48,8 +50,12 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
         }
     }
 
-    if ((url.contains("127.0.0.1:6878") && !url.contains("manifest.m3u8")) || url.startsWith("acestream://")) {
-        val context = LocalContext.current
+    // Detectar si es Acestream y obtener el ID
+    val aceId = remember(url) { com.example.xuper.util.PlayerUtils.getAceId(url) }
+    val isAceStream = aceId.isNotEmpty()
+
+    if (isAceStream && (url.contains("127.0.0.1:6878") && !url.contains("manifest.m3u8")) || url.startsWith("acestream://")) {
+        // Mostrar mensaje para usar reproductor externo
         Box(modifier = modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
@@ -57,12 +63,12 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
                 Text("Contenido Acestream", color = Color.White, style = MaterialTheme.typography.headlineSmall)
                 Text("Usa el REPRODUCTOR EXTERNO para este canal", color = Color.Gray)
                 Spacer(Modifier.height(24.dp))
-                
-                var isFocused by remember { mutableStateOf(value = false) }
+
+                var isFocused by remember { mutableStateOf(false) }
                 val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "btnScale")
-                
+
                 Button(
-                    onClick = { PlayerUtils.launchAceStream(context, "Acestream", url) },
+                    onClick = { com.example.xuper.util.PlayerUtils.launchAceStream(context, "Acestream", url) },
                     modifier = Modifier
                         .onFocusChanged { isFocused = it.isFocused }
                         .scale(scale)
@@ -75,6 +81,24 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
                     Text("ABRIR EN ACE STREAM")
                 }
             }
+        }
+    } else if (isAceStream) {
+        // Reproducir Acestream con HLS usando el servidor configurado
+        val hlsUrl = remember(url, config) {
+            com.example.xuper.util.PlayerUtils.formatAceStreamHttpUrl(url, config.host, config.port)
+        }
+
+        Box(modifier = modifier.fillMaxSize()) {
+            VideoPlayer(url = hlsUrl, modifier = Modifier.fillMaxSize())
+
+            // Overlay con stats de Acestream
+            AceStreamStatsOverlay(
+                contentId = aceId,
+                aceStreamManager = aceStreamManager,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+            )
         }
     } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || (!url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts")))) {
         WebPlayer(url = url, modifier = modifier)
@@ -117,22 +141,32 @@ fun WebPlayer(url: String, modifier: Modifier = Modifier) {
 @Composable
 fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
+
+    // Usar factory optimizado en lugar de crear siempre nuevo
+    val exoPlayer = remember(url) {
+        com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false).apply {
             setMediaItem(MediaItem.fromUri(url))
             prepare()
             playWhenReady = true
         }
     }
 
-    LaunchedEffect(url) {
-        exoPlayer.setMediaItem(MediaItem.fromUri(url))
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
-    }
+    // Listener de estado para debugging
+    DisposableEffect(exoPlayer) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                // Log state changes para debugging
+                android.util.Log.d("VideoPlayer", "State: $playbackState")
+            }
+        }
+        exoPlayer.addListener(listener)
 
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+            // NO liberar aquí si usamos pool, solo limpiar
+        }
     }
 
     AndroidView(
@@ -158,20 +192,25 @@ fun SidebarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String
 ) {
-    var isFocused by remember { mutableStateOf(value = false) }
-    val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "scale")
+    var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.08f else 1f,
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "sidebarScale"
+    )
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            selected -> Color.White
-            isFocused -> MaterialTheme.colorScheme.primary
+            selected -> com.example.xuper.ui.theme.SelectionIndicator
+            isFocused -> com.example.xuper.ui.theme.FocusBackground
             else -> Color.Transparent
         },
-        label = "bg"
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "sidebarBg"
     )
     val contentColor = when {
         selected -> Color.Black
-        isFocused -> Color.White
-        else -> Color.Gray
+        isFocused -> Color.Black
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Surface(
@@ -182,8 +221,8 @@ fun SidebarItem(
             .onFocusChanged { isFocused = it.isFocused }
             .scale(scale)
             .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                 shape = RoundedCornerShape(8.dp)
             ),
         color = backgroundColor,
@@ -199,6 +238,7 @@ fun SidebarItem(
                 tint = contentColor,
                 modifier = Modifier.size(24.dp)
             )
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
@@ -211,15 +251,9 @@ fun SidebarItem(
 
 @Composable
 fun ErrorState(message: String, onRetry: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-            Icon(Icons.Default.Error, contentDescription = null, tint = Color.Red, modifier = Modifier.size(64.dp))
-            Spacer(Modifier.height(16.dp))
-            Text(message, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = onRetry) {
-                Text("REINTENTAR")
-            }
-        }
-    }
+    EnhancedErrorState(
+        message = message,
+        onRetry = onRetry,
+        icon = Icons.Default.Error
+    )
 }

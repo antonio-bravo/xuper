@@ -121,22 +121,32 @@ object PlayerUtils {
 //        return ""
 //    }
 
-    fun formatAceStreamHttpUrl(urlOrId: String): String {
+    fun formatAceStreamHttpUrl(urlOrId: String, host: String = "127.0.0.1", port: Int = 6878): String {
         val id = getAceId(urlOrId)
         return if (id.isNotEmpty()) {
-            "http://127.0.0.1:6878/ace/manifest.m3u8?id=$id"
+            "http://$host:$port/ace/manifest.m3u8?id=$id"
         } else {
             urlOrId
         }
     }
 
-    fun formatAceStreamGetStreamUrl(urlOrId: String): String {
+    fun formatAceStreamGetStreamUrl(urlOrId: String, host: String = "127.0.0.1", port: Int = 6878): String {
         val id = getAceId(urlOrId)
         return if (id.isNotEmpty()) {
-            "http://127.0.0.1:6878/ace/getstream?id=$id"
+            "http://$host:$port/ace/getstream?id=$id"
         } else {
             urlOrId
         }
+    }
+
+    /**
+     * Verificar si una URL es de Acestream
+     */
+    fun isAceStreamUrl(url: String): Boolean {
+        return url.startsWith("acestream://") ||
+               getAceId(url).isNotEmpty() ||
+               url.contains("127.0.0.1:6878") ||
+               url.contains("/ace/")
     }
 
     fun openInAceStreamApp(context: Context, url: String) {

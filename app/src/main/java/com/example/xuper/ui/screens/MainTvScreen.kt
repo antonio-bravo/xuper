@@ -2,8 +2,12 @@ package com.example.xuper.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
+import com.example.xuper.ui.components.rememberAdaptiveLayoutConfig
+import com.example.xuper.ui.components.ResponsivePlayer
+import com.example.xuper.ui.components.LoadingIndicator
+import com.example.xuper.ui.components.EmptyState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
@@ -52,78 +56,32 @@ fun MainTvScreen(
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
     var isSingleColumn by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val layoutConfig = rememberAdaptiveLayoutConfig()
 
-    Column {
+    Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
         if (selectedChannel != null) {
-            var isPlayerFocused by remember { mutableStateOf(false) }
-            val playerScale by animateFloatAsState(if (isPlayerFocused) 1.02f else 1f, label = "playerScale")
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(250.dp)
-                    .onFocusChanged { isPlayerFocused = it.isFocused }
-                    .scale(playerScale)
-                    .border(
-                        width = if (isPlayerFocused) 4.dp else 0.dp,
-                        color = if (isPlayerFocused) MaterialTheme.colorScheme.primary else Color.Transparent
-                    )
-                    .clickable { onFullScreen() }
-                    .focusable(),
-            ) {
-                UniversalPlayer(url = selectedChannel.url)
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp),
-                ) {
-                    var isFsFocused by remember { mutableStateOf(value = false) }
-                    val fsScale by animateFloatAsState(if (isFsFocused) 1.2f else 1f, label = "fsScale")
-                    IconButton(
-                        onClick = onFullScreen,
-                        modifier = Modifier
-                            .onFocusChanged { isFsFocused = it.isFocused }
-                            .scale(fsScale)
-                            .border(
-                                width = if (isFsFocused) 2.dp else 0.dp,
-                                color = if (isFsFocused) Color.White else Color.Transparent,
-                                shape = CircleShape
-                            )
-                    ) {
-                        Icon(
-                            Icons.Default.Fullscreen,
-                            contentDescription = "Full Screen",
-                            tint = Color.White
-                        )
-                    }
-                }
-                var isCloseFocused by remember { mutableStateOf(value = false) }
-                val closeScale by animateFloatAsState(if (isCloseFocused) 1.2f else 1f, label = "closeScale")
-                IconButton(
-                    onClick = { onChannelSelected(null) },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .onFocusChanged { isCloseFocused = it.isFocused }
-                        .scale(closeScale)
-                        .border(
-                            width = if (isCloseFocused) 2.dp else 0.dp,
-                            color = if (isCloseFocused) Color.White else Color.Transparent,
-                            shape = CircleShape
-                        )
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
-                }
-            }
+            ResponsivePlayer(
+                url = selectedChannel.url,
+                onFullScreen = onFullScreen,
+                onClose = { onChannelSelected(null) }
+            )
         } else {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(250.dp)
-                    .padding(16.dp),
+                    .height(layoutConfig.playerHeight)
+                    .background(MaterialTheme.colorScheme.surfaceDim)
+                    .padding(layoutConfig.contentPadding),
                 contentAlignment = Alignment.Center
             ) {
-                if (isLoading) CircularProgressIndicator() else Text(stringResourceAI("select_channel_msg"))
+                if (isLoading) {
+                    LoadingIndicator(message = stringResourceAI("loading"))
+                } else {
+                    EmptyState(
+                        message = stringResourceAI("select_channel_msg"),
+                        icon = Icons.Default.Tv
+                    )
+                }
             }
         }
 
@@ -144,12 +102,12 @@ fun MainTvScreen(
                     .onFocusChanged { isTvRefreshFocused = it.isFocused }
                     .scale(tvRefreshScale)
                     .border(
-                        width = if (isTvRefreshFocused) 2.dp else 0.dp,
-                        color = if (isTvRefreshFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        width = if (isTvRefreshFocused) 3.dp else 0.dp,
+                        color = if (isTvRefreshFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                         shape = CircleShape
                     ),
                 colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = if (isTvRefreshFocused) Color.White else Color.Transparent,
+                    containerColor = if (isTvRefreshFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = if (isTvRefreshFocused) Color.Black else MaterialTheme.colorScheme.primary
                 )
             ) {
@@ -164,12 +122,12 @@ fun MainTvScreen(
                     .onFocusChanged { isToggleLayoutFocused = it.isFocused }
                     .scale(toggleLayoutScale)
                     .border(
-                        width = if (isToggleLayoutFocused) 2.dp else 0.dp,
-                        color = if (isToggleLayoutFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        width = if (isToggleLayoutFocused) 3.dp else 0.dp,
+                        color = if (isToggleLayoutFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                         shape = CircleShape
                     ),
                 colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = if (isToggleLayoutFocused) Color.White else Color.Transparent,
+                    containerColor = if (isToggleLayoutFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = if (isToggleLayoutFocused) Color.Black else MaterialTheme.colorScheme.primary
                 )
             ) {
@@ -195,13 +153,14 @@ fun MainTvScreen(
                             .scale(chipScale)
                             .border(
                                 width = if (isFocused) 3.dp else 0.dp,
-                                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = MaterialTheme.shapes.small
                             ),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color.White,
+                            selectedContainerColor = com.example.xuper.ui.theme.SelectionIndicator,
                             selectedLabelColor = Color.Black,
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            containerColor = if (isFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
+                            labelColor = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -229,13 +188,14 @@ fun MainTvScreen(
                         .scale(catScale)
                         .border(
                             width = if (isFocused) 3.dp else 0.dp,
-                            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                             shape = MaterialTheme.shapes.small
                         ),
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color.White,
+                        selectedContainerColor = com.example.xuper.ui.theme.SelectionIndicator,
                         selectedLabelColor = Color.Black,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        containerColor = if (isFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
+                        labelColor = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }
@@ -256,6 +216,7 @@ fun MainTvScreen(
             onChannelSelected = { showPlayerDialog = it },
             onToggleFavorite = onToggleFavorite,
             isSingleColumn = isSingleColumn,
+            isLoading = isLoading && filteredChannels.isEmpty(),
             modifier = Modifier.weight(1f)
         )
 
@@ -272,38 +233,84 @@ fun MainTvScreen(
                 .scale(searchScale)
                 .border(
                     width = if (isSearchFocused) 3.dp else 0.dp,
-                    color = if (isSearchFocused) Color.White else Color.Transparent,
+                    color = if (isSearchFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                     shape = MaterialTheme.shapes.small,
                 ),
             placeholder = { Text(stringResourceAI("search_placeholder")) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = if (isSearchFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             singleLine = true,
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.secondary,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = Color.Transparent,
             ),
         )
     }
 
     showPlayerDialog?.let { channel ->
+        var selectedPlayerType by remember { mutableStateOf<String?>(null) }
+
         AlertDialog(
             onDismissRequest = { showPlayerDialog = null },
             title = { Text(channel.name, style = MaterialTheme.typography.headlineSmall) },
             text = {
                 Column {
-                    Text(stringResourceAI("select_player"))
+                    Text(stringResourceAI("select_player"), style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.height(8.dp))
                     if (channel.category != "Otros") {
-                        Text("${stringResourceAI("category")}: ${channel.category}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "${stringResourceAI("category")}: ${channel.category}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Indicador si es Acestream
+                    val isAcestream = remember { PlayerUtils.isAceStreamUrl(channel.url) }
+                    if (isAcestream) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                    shape = MaterialTheme.shapes.small
+                                )
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Canal Acestream P2P",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             },
             containerColor = MaterialTheme.colorScheme.surface,
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    var isIntFocused by remember { mutableStateOf(value = false) }
+                    // Botón: Reproductor Interno
+                    var isIntFocused by remember { mutableStateOf(false) }
                     val intScale by animateFloatAsState(if (isIntFocused) 1.05f else 1f, label = "intScale")
                     Button(
                         onClick = {
+                            selectedPlayerType = "internal"
                             onChannelSelected(channel)
                             showPlayerDialog = null
                         },
@@ -312,30 +319,43 @@ fun MainTvScreen(
                             .onFocusChanged { isIntFocused = it.isFocused }
                             .scale(intScale)
                             .border(
-                                width = if (isIntFocused) 4.dp else 0.dp,
-                                color = if (isIntFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                width = if (isIntFocused) 3.dp else 0.dp,
+                                color = if (isIntFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isIntFocused) Color.White else MaterialTheme.colorScheme.primary,
+                            containerColor = if (isIntFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
                             contentColor = if (isIntFocused) Color.Black else Color.White,
                         ),
                     ) {
-                        Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Con stats P2P en pantalla",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isIntFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
+                            )
+                        }
                     }
 
-                    var isExtFocused by remember { mutableStateOf(value = false) }
+                    // Botón: Reproductor Externo
+                    var isExtFocused by remember { mutableStateOf(false) }
                     val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
                     Button(
                         onClick = {
+                            selectedPlayerType = "external"
                             val rawUrl = channel.url.trim()
                             val aceId = PlayerUtils.getAceId(rawUrl)
 
                             if (aceId.isNotEmpty()) {
-                                 PlayerUtils.openInAceStreamApp(
-                                     context,
-                                     "http://127.0.0.1:6878/ace/getstream?id=$aceId"
-                                 )
+                                // Usar AceStreamManager para obtener URL procesada
+                                val aceManager = com.example.xuper.data.AceStreamManager(context)
+                                val config = aceManager.getConfig()
+                                val streamUrl = "http://${config.host}:${config.port}/ace/getstream?id=$aceId"
+
+                                PlayerUtils.openInAceStreamApp(context, streamUrl)
                             } else {
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
                                     setDataAndType(rawUrl.toUri(), "video/*")
@@ -357,19 +377,31 @@ fun MainTvScreen(
                             .onFocusChanged { isExtFocused = it.isFocused }
                             .scale(extScale)
                             .border(
-                                width = if (isExtFocused) 4.dp else 0.dp,
-                                color = if (isExtFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                width = if (isExtFocused) 3.dp else 0.dp,
+                                color = if (isExtFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isExtFocused) Color.White else MaterialTheme.colorScheme.primary,
+                            containerColor = if (isExtFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primaryContainer,
                             contentColor = if (isExtFocused) Color.Black else Color.White,
                         ),
                     ) {
-                        Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Abrir en app externa",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isExtFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
+                            )
+                        }
                     }
 
-                    var isFavFocused by remember { mutableStateOf(value = false) }
+                    Spacer(Modifier.height(4.dp))
+
+                    // Botón: Favorito
+                    var isFavFocused by remember { mutableStateOf(false) }
                     val favScale by animateFloatAsState(if (isFavFocused) 1.05f else 1f, label = "favScale")
                     OutlinedButton(
                         onClick = {
@@ -380,20 +412,20 @@ fun MainTvScreen(
                             .onFocusChanged { isFavFocused = it.isFocused }
                             .scale(favScale)
                             .border(
-                                width = if (isFavFocused) 4.dp else 0.dp,
-                                color = if (isFavFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                width = if (isFavFocused) 3.dp else 0.dp,
+                                color = if (isFavFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = ButtonDefaults.shape,
                             ),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isFavFocused) Color.White else Color.Transparent,
-                            contentColor = if (isFavFocused) Color.Black else Color.White,
+                            containerColor = if (isFavFocused) com.example.xuper.ui.theme.FocusBackground else Color.Transparent,
+                            contentColor = if (isFavFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                         ),
                     ) {
                         Icon(
                             if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (channel.isFavorite) Color.Red else if (isFavFocused) Color.Black else Color.Gray,
+                            tint = if (channel.isFavorite) Color.Red else if (isFavFocused) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(if (channel.isFavorite) stringResourceAI("remove_favorite") else stringResourceAI("add_favorite"))
@@ -401,8 +433,15 @@ fun MainTvScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPlayerDialog = null }) {
-                    Text(stringResourceAI("cancel"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                var isCancelFocused by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { showPlayerDialog = null },
+                    modifier = Modifier.onFocusChanged { isCancelFocused = it.isFocused }
+                ) {
+                    Text(
+                        stringResourceAI("cancel"),
+                        color = if (isCancelFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
         )

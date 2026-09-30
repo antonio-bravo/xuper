@@ -186,7 +186,14 @@ class XuperAppState(
             M3UList(id = UUID.randomUUID().toString(), name = "Cine & Series (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/movies.m3u"),
             M3UList(id = UUID.randomUUID().toString(), name = "Documentales (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/documentary.m3u"),
             M3UList(id = UUID.randomUUID().toString(), name = "Deportes (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/sports.m3u"),
-            M3UList(id = UUID.randomUUID().toString(), name = "Kids (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/kids.m3u")
+            M3UList(id = UUID.randomUUID().toString(), name = "Kids (IPTV-org)", url = "https://iptv-org.github.io/iptv/categories/kids.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "RBTV Futbol", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_rbtv_futbol.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "RBTV Futbol RAW", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_rbtv_futbol_raw.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "TV 247 US", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_tv247us.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "TV Now 247", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_tvnow247.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "Streamed", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_streamed.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "golxu", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_golxu.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "AK47 Sports", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_ak47sports.m3u")
         )
     }
 }

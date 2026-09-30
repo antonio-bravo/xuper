@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.xuper.data.AceStreamManager
 import com.example.xuper.data.ArenaParser
 import com.example.xuper.model.ArenaEvent
 import com.example.xuper.ui.components.UniversalPlayer
@@ -41,7 +43,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import com.example.xuper.util.PlayerUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,6 +63,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val context = LocalContext.current
+    val aceStreamManager = remember { AceStreamManager(context) }
 
     // State for URL confirmation dialog
     var showUrlDialog by remember { mutableStateOf(false) }
@@ -64,9 +74,63 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
     // State for channel selection dialog
     var showChannelPicker by remember { mutableStateOf(false) }
     var selectedEventForPicker by remember { mutableStateOf<ArenaEvent?>(null) }
+    var channelPeers by remember { mutableStateOf<Map<String, Int?>>(emptyMap()) }
+    var isLoadingPeersMap by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
 
     val firstChannelFocusRequester = remember { FocusRequester() }
     val urlInternalBtnFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(showChannelPicker, selectedEventForPicker, streams) {
+        if (showChannelPicker && selectedEventForPicker != null) {
+            val channels = selectedEventForPicker!!.channels
+            val availableChannels = channels.filter { streams[it] != null }
+
+            channelPeers = emptyMap()
+            isLoadingPeersMap = availableChannels.associateWith { true }
+
+            // Log para debug
+            android.util.Log.d("ArenaScreen", "Consultando peers para ${availableChannels.size} canales")
+
+            coroutineScope {
+                availableChannels.forEach { channelName ->
+                    launch(Dispatchers.IO) {
+                        val hash = streams[channelName]
+                        if (hash != null) {
+                            android.util.Log.d("ArenaScreen", "Obteniendo stats para $channelName con hash: $hash")
+
+                            try {
+                                val stats = withTimeoutOrNull(5000) {
+                                    aceStreamManager.getStreamStats(hash)
+                                }
+
+                                val peerCount = stats?.peers
+                                android.util.Log.d("ArenaScreen", "Stats para $channelName: peers=$peerCount, status=${stats?.status}")
+
+                                withContext(Dispatchers.Main) {
+                                    channelPeers = channelPeers + (channelName to peerCount)
+                                    isLoadingPeersMap = isLoadingPeersMap + (channelName to false)
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("ArenaScreen", "Error obteniendo stats para $channelName: ${e.message}")
+                                withContext(Dispatchers.Main) {
+                                    channelPeers = channelPeers + (channelName to null)
+                                    isLoadingPeersMap = isLoadingPeersMap + (channelName to false)
+                                }
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                channelPeers = channelPeers + (channelName to null)
+                                isLoadingPeersMap = isLoadingPeersMap + (channelName to false)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            channelPeers = emptyMap()
+            isLoadingPeersMap = emptyMap()
+        }
+    }
 
     LaunchedEffect(showChannelPicker) {
         if (showChannelPicker) {
@@ -147,24 +211,86 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                                 enabled = isAvailable
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        if (isAvailable) Icons.Default.PlayArrow else Icons.Default.ContentCopy, 
-                                        contentDescription = null, 
-                                        tint = when {
-                                            isItemFocused -> Color.Black
-                                            isAvailable -> MaterialTheme.colorScheme.primary
-                                            else -> Color.Gray
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            if (isAvailable) Icons.Default.PlayArrow else Icons.Default.ContentCopy, 
+                                            contentDescription = null, 
+                                            tint = when {
+                                                isItemFocused -> Color.Black
+                                                isAvailable -> MaterialTheme.colorScheme.primary
+                                                else -> Color.Gray
+                                            }
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = channelName, 
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isItemFocused) Color.Black else if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
+                                        )
+                                    }
+
+                                    if (isAvailable) {
+                                        val peers = channelPeers[channelName]
+                                        val isLoadingPeers = isLoadingPeersMap[channelName] ?: false
+
+                                        Surface(
+                                            color = when {
+                                                isItemFocused -> Color.Black.copy(alpha = 0.15f)
+                                                peers != null && peers > 0 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                            },
+                                            shape = MaterialTheme.shapes.small
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                if (isLoadingPeers && peers == null) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(12.dp),
+                                                        strokeWidth = 1.5.dp,
+                                                        color = if (isItemFocused) Color.Black else MaterialTheme.colorScheme.primary
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        Icons.Default.People,
+                                                        contentDescription = "Peers",
+                                                        modifier = Modifier.size(14.dp),
+                                                        tint = when {
+                                                            isItemFocused -> Color.Black
+                                                            peers != null && peers > 0 -> MaterialTheme.colorScheme.primary
+                                                            else -> Color.Gray
+                                                        }
+                                                    )
+                                                }
+                                                Text(
+                                                    text = when {
+                                                        isLoadingPeers && peers == null -> "..."
+                                                        peers != null && peers > 0 -> "$peers"
+                                                        peers == 0 -> "0"
+                                                        else -> "N/A"
+                                                    },
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = when {
+                                                        isItemFocused -> Color.Black
+                                                        peers != null && peers > 0 -> MaterialTheme.colorScheme.primary
+                                                        else -> Color.Gray
+                                                    }
+                                                )
+                                            }
                                         }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = channelName, 
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isItemFocused) Color.Black else if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
-                                    )
+                                    }
                                 }
                             }
                         }
@@ -211,13 +337,45 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 
     if (showUrlDialog) {
         val displayUrl = PlayerUtils.formatAceStreamHttpUrl(pendingUrl)
+        val peers = channelPeers[pendingChannelName]
         
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
             title = { Text("Abrir Canal") },
             text = {
                 Column {
-                    Text("Canal: $pendingChannelName", fontWeight = FontWeight.Bold)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Canal: $pendingChannelName", fontWeight = FontWeight.Bold)
+                        if (peers != null) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                shape = MaterialTheme.shapes.extraSmall
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.People,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        "$peers peers",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                     Text("Selecciona el método de reproducción:")
                 }
@@ -335,12 +493,12 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                         .onFocusChanged { isIconRefreshFocused = it.isFocused }
                         .scale(iconRefreshScale)
                         .border(
-                            width = if (isIconRefreshFocused) 2.dp else 0.dp,
-                            color = if (isIconRefreshFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            width = if (isIconRefreshFocused) 3.dp else 0.dp,
+                            color = if (isIconRefreshFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                             shape = CircleShape
                         ),
                     colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = if (isIconRefreshFocused) Color.White else Color.Transparent,
+                        containerColor = if (isIconRefreshFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = if (isIconRefreshFocused) Color.Black else MaterialTheme.colorScheme.primary
                     )
                 ) {
@@ -368,12 +526,12 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                             .scale(scale)
                             .focusable()
                             .border(
-                                width = if (isFocused) 2.dp else 0.dp,
-                                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                width = if (isFocused) 3.dp else 0.dp,
+                                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = MaterialTheme.shapes.small
                             ),
                         shape = MaterialTheme.shapes.small,
-                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.surfaceVariant
+                        color = if (isSelected) com.example.xuper.ui.theme.SelectionIndicator else if (isFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
                             text = source.replace("https://", "").replace("http://", "").substringBefore("/"),
@@ -475,13 +633,16 @@ fun ArenaEventRow(
             .clickable { onRowClick(event) }
             .border(
                 width = if (isFocused) 3.dp else 0.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = MaterialTheme.shapes.small
+                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                shape = MaterialTheme.shapes.medium
             ),
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color.White else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            containerColor = if (isFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
         ),
-        shape = MaterialTheme.shapes.small
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isFocused) 8.dp else 2.dp
+        ),
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
