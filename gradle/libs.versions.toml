@@ -16,7 +16,7 @@ kotlin = "2.4.21"
 room = "2.8.5"
 ksp = "2.3.12"
 
-okhttp = "5.5.0"
+okhttp = "5.5.1"
 jsoup = "1.23.2"
 
 navigation3 = "1.1.7"
