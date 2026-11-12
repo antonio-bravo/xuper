@@ -182,12 +182,19 @@ class AceStreamManager(context: Context) {
     }
 
     /**
-     * Formatear la URL de reproducción para un proxy específico
+     * Formatear la URL de reproducción para un proxy específico.
+     * Para proxies/servidores remotos (distintos de 127.0.0.1) se utiliza /ace/getstream
+     * para transmisión MPEG-TS directa continua, evitando que el manifiesto HLS remoto
+     * devuelva enlaces internos apuntando a 127.0.0.1.
      */
     fun getFormattedUrlForProxy(originalUrl: String, proxy: AceStreamProxy): String {
         val aceId = PlayerUtils.getAceId(originalUrl)
         if (aceId.isNotEmpty()) {
-            return proxy.getManifestUrl(aceId)
+            return if (proxy.host != DEFAULT_LOCAL_HOST && proxy.host != "localhost") {
+                proxy.getStreamUrl(aceId)
+            } else {
+                proxy.getManifestUrl(aceId)
+            }
         }
 
         // Si no se extrae un ID de 40 caracteres, reemplazar el host/puerto

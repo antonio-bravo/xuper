@@ -12,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
@@ -369,30 +371,45 @@ fun TvSidePanel(
     onSearchChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isPanelFocused by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
+
+    val isExpanded = isPanelFocused || isSearchExpanded || searchQuery.isNotEmpty()
+    val panelWidth by animateDpAsState(
+        targetValue = if (isExpanded) 200.dp else 72.dp,
+        animationSpec = androidx.compose.animation.core.tween(200),
+        label = "panelWidth"
+    )
 
     Surface(
         modifier = modifier
             .fillMaxHeight()
-            .width(if (isSearchExpanded || searchQuery.isNotEmpty()) 220.dp else 190.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        tonalElevation = 4.dp
+            .width(panelWidth)
+            .onFocusChanged { isPanelFocused = it.hasFocus },
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+        tonalElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 16.dp, horizontal = 8.dp),
+                .padding(vertical = 12.dp, horizontal = 8.dp),
             verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.Start
+            horizontalAlignment = if (isExpanded) Alignment.Start else Alignment.CenterHorizontally
         ) {
-            // Título App
-            Text(
-                "XUPER TV",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 12.dp, bottom = 12.dp)
-            )
+            // Título App (Visible al expandir)
+            AnimatedVisibility(visible = isExpanded) {
+                Text(
+                    "XUPER TV",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
+                )
+            }
+
+            if (!isExpanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // 1. Elementos de Navegación (Arriba)
             val navItems = listOf(
@@ -406,7 +423,7 @@ fun TvSidePanel(
             navItems.forEach { (route, icon, label) ->
                 val isSelected = currentRoute == route
                 var isFocused by remember { mutableStateOf(false) }
-                val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, label = "navFocus")
+                val scale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "navFocus")
 
                 Surface(
                     onClick = { onNavigate(route) },
@@ -416,7 +433,10 @@ fun TvSidePanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 2.dp)
-                        .onFocusChanged { isFocused = it.isFocused }
+                        .onFocusChanged {
+                            isFocused = it.isFocused
+                            if (it.hasFocus) isPanelFocused = true
+                        }
                         .scale(scale)
                         .border(
                             width = if (isFocused) 2.dp else 0.dp,
@@ -427,19 +447,21 @@ fun TvSidePanel(
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = if (isExpanded) Arrangement.spacedBy(12.dp) else Arrangement.Center
                     ) {
                         Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
-                        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                        if (isExpanded) {
+                            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+                        }
                     }
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp))
 
             // 2. Acciones: Refrescar + Cambio de Vista
             var isRefreshFocused by remember { mutableStateOf(false) }
-            val refreshScale by animateFloatAsState(if (isRefreshFocused) 1.05f else 1f, label = "refreshFocus")
+            val refreshScale by animateFloatAsState(if (isRefreshFocused) 1.1f else 1f, label = "refreshFocus")
             Surface(
                 onClick = onRefresh,
                 shape = MaterialTheme.shapes.small,
@@ -448,7 +470,10 @@ fun TvSidePanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
-                    .onFocusChanged { isRefreshFocused = it.isFocused }
+                    .onFocusChanged {
+                        isRefreshFocused = it.isFocused
+                        if (it.hasFocus) isPanelFocused = true
+                    }
                     .scale(refreshScale)
                     .border(
                         width = if (isRefreshFocused) 2.dp else 0.dp,
@@ -459,15 +484,17 @@ fun TvSidePanel(
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = if (isExpanded) Arrangement.spacedBy(12.dp) else Arrangement.Center
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refrescar", modifier = Modifier.size(22.dp))
-                    Text(stringResourceAI("refresh"), style = MaterialTheme.typography.bodyMedium)
+                    if (isExpanded) {
+                        Text(stringResourceAI("refresh"), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    }
                 }
             }
 
             var isViewFocused by remember { mutableStateOf(false) }
-            val viewScale by animateFloatAsState(if (isViewFocused) 1.05f else 1f, label = "viewFocus")
+            val viewScale by animateFloatAsState(if (isViewFocused) 1.1f else 1f, label = "viewFocus")
             Surface(
                 onClick = onToggleView,
                 shape = MaterialTheme.shapes.small,
@@ -476,7 +503,10 @@ fun TvSidePanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
-                    .onFocusChanged { isViewFocused = it.isFocused }
+                    .onFocusChanged {
+                        isViewFocused = it.isFocused
+                        if (it.hasFocus) isPanelFocused = true
+                    }
                     .scale(viewScale)
                     .border(
                         width = if (isViewFocused) 2.dp else 0.dp,
@@ -487,14 +517,16 @@ fun TvSidePanel(
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = if (isExpanded) Arrangement.spacedBy(12.dp) else Arrangement.Center
                 ) {
                     Icon(
                         imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
                         contentDescription = "Cambiar vista",
                         modifier = Modifier.size(22.dp)
                     )
-                    Text(if (isSingleColumn) "Cuadrícula" else "Lista", style = MaterialTheme.typography.bodyMedium)
+                    if (isExpanded) {
+                        Text(if (isSingleColumn) "Cuadrícula" else "Lista", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    }
                 }
             }
 
@@ -502,7 +534,7 @@ fun TvSidePanel(
             Spacer(modifier = Modifier.weight(1f))
 
             // 4. Lupa / Buscador abajo del todo
-            if (isSearchExpanded || searchQuery.isNotEmpty()) {
+            if (isExpanded && (isSearchExpanded || searchQuery.isNotEmpty())) {
                 var isSearchFieldFocused by remember { mutableStateOf(false) }
                 OutlinedTextField(
                     value = searchQuery,
@@ -535,7 +567,10 @@ fun TvSidePanel(
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onFocusChanged { isSearchFieldFocused = it.isFocused }
+                        .onFocusChanged {
+                            isSearchFieldFocused = it.isFocused
+                            if (it.hasFocus) isPanelFocused = true
+                        }
                         .border(
                             width = if (isSearchFieldFocused) 2.dp else 0.dp,
                             color = if (isSearchFieldFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
@@ -544,7 +579,7 @@ fun TvSidePanel(
                 )
             } else {
                 var isSearchBtnFocused by remember { mutableStateOf(false) }
-                val searchBtnScale by animateFloatAsState(if (isSearchBtnFocused) 1.05f else 1f, label = "searchFocus")
+                val searchBtnScale by animateFloatAsState(if (isSearchBtnFocused) 1.1f else 1f, label = "searchFocus")
 
                 Surface(
                     onClick = {
@@ -558,7 +593,10 @@ fun TvSidePanel(
                     contentColor = if (isSearchBtnFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onFocusChanged { isSearchBtnFocused = it.isFocused }
+                        .onFocusChanged {
+                            isSearchBtnFocused = it.isFocused
+                            if (it.hasFocus) isPanelFocused = true
+                        }
                         .scale(searchBtnScale)
                         .border(
                             width = if (isSearchBtnFocused) 2.dp else 0.dp,
@@ -569,10 +607,12 @@ fun TvSidePanel(
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = if (isExpanded) Arrangement.spacedBy(12.dp) else Arrangement.Center
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Buscar", modifier = Modifier.size(22.dp))
-                        Text(stringResourceAI("search"), style = MaterialTheme.typography.bodyMedium)
+                        if (isExpanded) {
+                            Text(stringResourceAI("search"), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                        }
                     }
                 }
             }
