@@ -53,6 +53,7 @@ fun MainTvScreen(
     filterFocusRequester: FocusRequester,
     onRefreshM3U: () -> Unit,
     isSingleColumn: Boolean,
+    onToggleSingleColumn: () -> Unit = {}
 ) {
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
     val context = LocalContext.current
@@ -99,7 +100,7 @@ fun MainTvScreen(
                 IconButton(onClick = onRefreshM3U, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refrescar Listas", modifier = Modifier.size(20.dp))
                 }
-                IconButton(onClick = { /* Acción manejada por padre */ }, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onToggleSingleColumn, modifier = Modifier.size(36.dp)) {
                     Icon(
                         imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
                         contentDescription = "Cambiar vista",

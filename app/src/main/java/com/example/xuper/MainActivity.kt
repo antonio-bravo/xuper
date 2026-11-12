@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -223,7 +224,6 @@ fun XuperApp() {
     val context = LocalContext.current
     val appState = rememberXuperAppState()
     val arenaViewModel: ArenaViewModel = viewModel()
-    val layoutConfig = com.example.xuper.ui.components.rememberAdaptiveLayoutConfig()
 
     val currentChannels by appState.currentChannelsFlow.collectAsState()
     val isLoading by appState.isLoadingFlow.collectAsState()
@@ -260,7 +260,8 @@ fun XuperApp() {
                     onFullScreen = { appState.playChannelFullScreen(appState.selectedChannel) },
                     filterFocusRequester = appState.filterFocusRequester,
                     onRefreshM3U = { appState.triggerRefresh() },
-                    isSingleColumn = isSingleColumn
+                    isSingleColumn = isSingleColumn,
+                    onToggleSingleColumn = { isSingleColumn = !isSingleColumn }
                 )
             }
         }
@@ -288,60 +289,44 @@ fun XuperApp() {
         }
     }
 
-    if (layoutConfig.isCompact) {
-        // Modo Móvil: Navegación Abajo (NavigationBar)
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
-                    val navItems = listOf(
-                        Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
-                        Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
-                        Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
-                        Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
-                        Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
-                    )
-
-                    navItems.forEach { (route, icon, label) ->
-                        NavigationBarItem(
-                            selected = appState.navigator.state.topLevelRoute == route,
-                            onClick = { appState.navigator.navigate(route) },
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) }
-                        )
-                    }
-                }
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                NavDisplay(
-                    entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
-                    onBack = { appState.navigator.goBack() }
-                )
-            }
-        }
-    } else {
-        // Modo TV / Tablet / Landscape: Panel de Navegación a la Izquierda
-        Row(modifier = Modifier.fillMaxSize()) {
-            SideNavigationRail(
-                currentRoute = appState.navigator.state.topLevelRoute,
-                onNavigate = { appState.navigator.navigate(it) },
-                onRefresh = { appState.triggerRefresh() },
-                isSingleColumn = isSingleColumn,
-                onToggleView = { isSingleColumn = !isSingleColumn },
-                searchQuery = searchQuery.orEmpty(),
-                onSearchChange = { appState.setSearchQuery(it) }
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            item(
+                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Tv,
+                onClick = { appState.navigator.navigate(XuperNavKey.Tv) },
+                icon = { Icon(Icons.Default.Tv, contentDescription = null) },
+                label = { Text(stringResourceAI("tv")) }
             )
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                NavDisplay(
-                    entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
-                    onBack = { appState.navigator.goBack() }
-                )
-            }
+            item(
+                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Favorites,
+                onClick = { appState.navigator.navigate(XuperNavKey.Favorites) },
+                icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+                label = { Text(stringResourceAI("favorites")) }
+            )
+            item(
+                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Arena,
+                onClick = { appState.navigator.navigate(XuperNavKey.Arena) },
+                icon = { Icon(Icons.Default.SportsSoccer, contentDescription = null) },
+                label = { Text("Arena") }
+            )
+            item(
+                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Lists,
+                onClick = { appState.navigator.navigate(XuperNavKey.Lists) },
+                icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                label = { Text(stringResourceAI("lists")) }
+            )
+            item(
+                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Config,
+                onClick = { appState.navigator.navigate(XuperNavKey.Config) },
+                icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                label = { Text(stringResourceAI("settings")) }
+            )
         }
+    ) {
+        NavDisplay(
+            entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
+            onBack = { appState.navigator.goBack() }
+        )
     }
 
     if (appState.showLanguageDialog) {
