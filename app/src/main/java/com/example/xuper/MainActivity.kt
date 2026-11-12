@@ -12,15 +12,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -220,6 +223,7 @@ fun XuperApp() {
     val context = LocalContext.current
     val appState = rememberXuperAppState()
     val arenaViewModel: ArenaViewModel = viewModel()
+    val layoutConfig = com.example.xuper.ui.components.rememberAdaptiveLayoutConfig()
 
     val currentChannels by appState.currentChannelsFlow.collectAsState()
     val isLoading by appState.isLoadingFlow.collectAsState()
@@ -229,6 +233,8 @@ fun XuperApp() {
     val searchQuery by appState.searchQueryFlow.collectAsState()
     val selectedCategory by appState.selectedCategoryFlow.collectAsState()
     val selectedListName by appState.selectedListNameFlow.collectAsState()
+
+    var isSingleColumn by remember { mutableStateOf(true) }
 
     val entryProvider = entryProvider {
         entry<XuperNavKey.Tv> { _ ->
@@ -253,7 +259,8 @@ fun XuperApp() {
                     onChannelSelected = { channel -> appState.playChannel(channel) },
                     onFullScreen = { appState.playChannelFullScreen(appState.selectedChannel) },
                     filterFocusRequester = appState.filterFocusRequester,
-                    onRefreshM3U = { appState.triggerRefresh() }
+                    onRefreshM3U = { appState.triggerRefresh() },
+                    isSingleColumn = isSingleColumn
                 )
             }
         }
@@ -281,44 +288,60 @@ fun XuperApp() {
         }
     }
 
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            item(
-                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Tv,
-                onClick = { appState.navigator.navigate(XuperNavKey.Tv) },
-                icon = { Icon(Icons.Default.Tv, contentDescription = null) },
-                label = { Text(stringResourceAI("tv")) }
-            )
-            item(
-                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Favorites,
-                onClick = { appState.navigator.navigate(XuperNavKey.Favorites) },
-                icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
-                label = { Text(stringResourceAI("favorites")) }
-            )
-            item(
-                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Arena,
-                onClick = { appState.navigator.navigate(XuperNavKey.Arena) },
-                icon = { Icon(Icons.Default.SportsSoccer, contentDescription = null) },
-                label = { Text("Arena") }
-            )
-            item(
-                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Lists,
-                onClick = { appState.navigator.navigate(XuperNavKey.Lists) },
-                icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                label = { Text(stringResourceAI("lists")) }
-            )
-            item(
-                selected = appState.navigator.state.topLevelRoute == XuperNavKey.Config,
-                onClick = { appState.navigator.navigate(XuperNavKey.Config) },
-                icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                label = { Text(stringResourceAI("settings")) }
-            )
+    if (layoutConfig.isCompact) {
+        // Modo Móvil: Navegación Abajo (NavigationBar)
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    val navItems = listOf(
+                        Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
+                        Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
+                        Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
+                        Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
+                        Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
+                    )
+
+                    navItems.forEach { (route, icon, label) ->
+                        NavigationBarItem(
+                            selected = appState.navigator.state.topLevelRoute == route,
+                            onClick = { appState.navigator.navigate(route) },
+                            icon = { Icon(icon, contentDescription = label) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                NavDisplay(
+                    entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
+                    onBack = { appState.navigator.goBack() }
+                )
+            }
         }
-    ) {
-        NavDisplay(
-            entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
-            onBack = { appState.navigator.goBack() }
-        )
+    } else {
+        // Modo TV / Tablet / Landscape: Panel de Navegación a la Izquierda
+        Row(modifier = Modifier.fillMaxSize()) {
+            SideNavigationRail(
+                currentRoute = appState.navigator.state.topLevelRoute,
+                onNavigate = { appState.navigator.navigate(it) },
+                onRefresh = { appState.triggerRefresh() },
+                isSingleColumn = isSingleColumn,
+                onToggleView = { isSingleColumn = !isSingleColumn },
+                searchQuery = searchQuery.orEmpty(),
+                onSearchChange = { appState.setSearchQuery(it) }
+            )
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                NavDisplay(
+                    entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
+                    onBack = { appState.navigator.goBack() }
+                )
+            }
+        }
     }
 
     if (appState.showLanguageDialog) {
@@ -329,6 +352,164 @@ fun XuperApp() {
                 appState.showLanguageDialog = false
             }
         )
+    }
+}
+
+@Composable
+fun SideNavigationRail(
+    currentRoute: NavKey,
+    onNavigate: (NavKey) -> Unit,
+    onRefresh: () -> Unit,
+    isSingleColumn: Boolean,
+    onToggleView: () -> Unit,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isSearchExpanded by remember { mutableStateOf(false) }
+
+    NavigationRail(
+        modifier = modifier.fillMaxHeight(),
+        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val navItems = listOf(
+            Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
+            Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
+            Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
+            Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
+            Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
+        )
+
+        navItems.forEach { (route, icon, label) ->
+            var isFocused by remember { mutableStateOf(false) }
+            val scale by animateFloatAsState(if (isFocused) 1.15f else 1f, label = "railFocus")
+            NavigationRailItem(
+                selected = currentRoute == route,
+                onClick = { onNavigate(route) },
+                icon = { Icon(icon, contentDescription = label) },
+                label = { Text(label) },
+                modifier = Modifier
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .scale(scale)
+                    .border(
+                        width = if (isFocused) 2.dp else 0.dp,
+                        color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    )
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp, horizontal = 12.dp))
+
+        var isRefreshFocused by remember { mutableStateOf(false) }
+        val refreshScale by animateFloatAsState(if (isRefreshFocused) 1.15f else 1f, label = "refreshFocus")
+        NavigationRailItem(
+            selected = false,
+            onClick = onRefresh,
+            icon = { Icon(Icons.Default.Refresh, contentDescription = "Refrescar") },
+            label = { Text(stringResourceAI("refresh")) },
+            modifier = Modifier
+                .onFocusChanged { isRefreshFocused = it.isFocused }
+                .scale(refreshScale)
+                .border(
+                    width = if (isRefreshFocused) 2.dp else 0.dp,
+                    color = if (isRefreshFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                    shape = MaterialTheme.shapes.small
+                )
+        )
+
+        var isViewFocused by remember { mutableStateOf(false) }
+        val viewScale by animateFloatAsState(if (isViewFocused) 1.15f else 1f, label = "viewFocus")
+        NavigationRailItem(
+            selected = false,
+            onClick = onToggleView,
+            icon = {
+                Icon(
+                    imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
+                    contentDescription = "Cambiar vista"
+                )
+            },
+            label = { Text(if (isSingleColumn) "Cuadrícula" else "Lista") },
+            modifier = Modifier
+                .onFocusChanged { isViewFocused = it.isFocused }
+                .scale(viewScale)
+                .border(
+                    width = if (isViewFocused) 2.dp else 0.dp,
+                    color = if (isViewFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                    shape = MaterialTheme.shapes.small
+                )
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Box(
+            modifier = Modifier
+                .padding(bottom = 12.dp, start = 4.dp, end = 4.dp)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isSearchExpanded || searchQuery.isNotEmpty()) {
+                var isSearchFieldFocused by remember { mutableStateOf(false) }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = {
+                        onSearchChange(it)
+                        if (currentRoute != XuperNavKey.Tv) {
+                            onNavigate(XuperNavKey.Tv)
+                        }
+                    },
+                    placeholder = { Text(stringResourceAI("search"), style = MaterialTheme.typography.bodySmall) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Buscar",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = {
+                                onSearchChange("")
+                                isSearchExpanded = false
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar búsqueda", modifier = Modifier.size(16.dp))
+                        }
+                    },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .width(160.dp)
+                        .onFocusChanged { isSearchFieldFocused = it.isFocused }
+                        .border(
+                            width = if (isSearchFieldFocused) 2.dp else 0.dp,
+                            color = if (isSearchFieldFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                )
+            } else {
+                var isSearchIconFocused by remember { mutableStateOf(false) }
+                val searchIconScale by animateFloatAsState(if (isSearchIconFocused) 1.15f else 1f, label = "searchFocus")
+                NavigationRailItem(
+                    selected = false,
+                    onClick = { isSearchExpanded = true },
+                    icon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+                    label = { Text(stringResourceAI("search")) },
+                    modifier = Modifier
+                        .onFocusChanged { isSearchIconFocused = it.isFocused }
+                        .scale(searchIconScale)
+                        .border(
+                            width = if (isSearchIconFocused) 2.dp else 0.dp,
+                            color = if (isSearchIconFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                )
+            }
+        }
     }
 }
 

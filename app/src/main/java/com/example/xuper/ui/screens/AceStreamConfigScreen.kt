@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,10 +17,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.xuper.data.AceStreamManager
-import com.example.xuper.ui.components.LoadingIndicator
+import com.example.xuper.data.AceStreamProxy
 import com.example.xuper.ui.components.rememberAdaptiveLayoutConfig
 import kotlinx.coroutines.launch
 
@@ -32,21 +32,18 @@ fun AceStreamConfigScreen() {
     val aceStreamManager = remember { AceStreamManager(context) }
     val scope = rememberCoroutineScope()
 
-    var host by remember { mutableStateOf("192.168.1.100") }
-    var port by remember { mutableStateOf("6878") }
-    var isChecking by remember { mutableStateOf(false) }
-    var checkResult by remember { mutableStateOf<Boolean?>(null) }
-    var isScanning by remember { mutableStateOf(false) }
-    var foundHosts by remember { mutableStateOf<List<String>>(emptyList()) }
-    var useCustom by remember { mutableStateOf(aceStreamManager.getConfig().isCustom) }
+    var proxies by remember { mutableStateOf(aceStreamManager.getProxies()) }
+    var activeProxy by remember { mutableStateOf(aceStreamManager.getSelectedProxy()) }
 
-    // Cargar configuración actual
-    LaunchedEffect(Unit) {
-        val config = aceStreamManager.getConfig()
-        if (config.isCustom) {
-            host = config.host
-            port = config.port.toString()
-        }
+    var showEditDialog by remember { mutableStateOf<AceStreamProxy?>(null) }
+    var isAddingNew by remember { mutableStateOf(false) }
+
+    var testStatusMap by remember { mutableStateOf<Map<String, Boolean?>>(emptyMap()) }
+    var testingId by remember { mutableStateOf<String?>(null) }
+
+    fun refreshProxies() {
+        proxies = aceStreamManager.getProxies()
+        activeProxy = aceStreamManager.getSelectedProxy()
     }
 
     Column(
@@ -58,75 +55,160 @@ fun AceStreamConfigScreen() {
     ) {
         // Header
         Text(
-            "Configuración Acestream",
+            "Configuración AceStream Proxies",
             style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            "Gestiona tus instancias de AceStream Engine (Local, Directo o con VPN)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        // Lista de Proxies
+        Text(
+            "Proxies Disponibles:",
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(Modifier.height(8.dp))
 
-        Text(
-            "Configura tu servidor Acestream Engine",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        proxies.forEach { proxy ->
+            val isSelected = proxy.id == activeProxy.id
+            val isTesting = testingId == proxy.id
+            val testResult = testStatusMap[proxy.id]
 
-        Spacer(Modifier.height(24.dp))
-
-        // Tipo de conexión
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Tipo de Conexión",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    else MaterialTheme.colorScheme.surfaceVariant
                 )
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(if (proxy.isVpn) "🔒" else "🌐", style = MaterialTheme.typography.titleLarge)
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        proxy.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (proxy.isVpn) {
+                                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                                            Text("VPN", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                                Text(
+                                    "http://${proxy.host}:${proxy.port}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
 
-                Spacer(Modifier.height(12.dp))
-
-                // Opción: Local
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = !useCustom,
-                        onClick = { useCustom = false }
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Local (127.0.0.1:6878)", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "Engine instalado en este dispositivo",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (isSelected) {
+                            Text(
+                                "✓ ACTIVO",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                }
 
-                Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
 
-                // Opción: Docker/Red
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = useCustom,
-                        onClick = { useCustom = true }
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Docker / Red Local", style = MaterialTheme.typography.bodyLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Seleccionar
+                        if (!isSelected) {
+                            var isSelectFocused by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = {
+                                    aceStreamManager.setSelectedProxy(proxy)
+                                    refreshProxies()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .onFocusChanged { isSelectFocused = it.isFocused }
+                                    .border(
+                                        width = if (isSelectFocused) 2.dp else 0.dp,
+                                        color = if (isSelectFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                        shape = ButtonDefaults.shape
+                                    )
+                            ) {
+                                Text("ACTIVAR", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+
+                        // Probar
+                        var isTestFocused by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    testingId = proxy.id
+                                    val available = aceStreamManager.isProxyAvailable(proxy)
+                                    testStatusMap = testStatusMap + (proxy.id to available)
+                                    testingId = null
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isTestFocused = it.isFocused }
+                                .border(
+                                    width = if (isTestFocused) 2.dp else 0.dp,
+                                    color = if (isTestFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = ButtonDefaults.shape
+                                )
+                        ) {
+                            if (isTesting) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("PROBAR", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+
+                        // Editar
+                        IconButton(onClick = { showEditDialog = proxy }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar")
+                        }
+
+                        // Eliminar (si no es el único)
+                        if (proxies.size > 1) {
+                            IconButton(onClick = {
+                                aceStreamManager.deleteProxy(proxy.id)
+                                refreshProxies()
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+
+                    // Resultado prueba
+                    testResult?.let { success ->
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "Engine en servidor de tu red",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            if (success) "✓ Conexión exitosa" else "✗ Sin respuesta",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (success) com.example.xuper.ui.theme.Success else com.example.xuper.ui.theme.Error
                         )
                     }
                 }
@@ -135,306 +217,121 @@ fun AceStreamConfigScreen() {
 
         Spacer(Modifier.height(16.dp))
 
-        // Configuración custom (solo si está seleccionada)
-        if (useCustom) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Servidor Custom",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Campo: Host
-                    var isHostFocused by remember { mutableStateOf(false) }
-                    OutlinedTextField(
-                        value = host,
-                        onValueChange = { host = it; checkResult = null },
-                        label = { Text("Host / IP") },
-                        placeholder = { Text("192.168.1.100") },
-                        leadingIcon = { Icon(Icons.Default.Computer, contentDescription = null) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isHostFocused = it.isFocused }
-                            .border(
-                                width = if (isHostFocused) 3.dp else 0.dp,
-                                color = if (isHostFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = MaterialTheme.shapes.small
-                            ),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        )
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    // Campo: Puerto
-                    var isPortFocused by remember { mutableStateOf(false) }
-                    OutlinedTextField(
-                        value = port,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) { port = it; checkResult = null } },
-                        label = { Text("Puerto") },
-                        placeholder = { Text("6878") },
-                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isPortFocused = it.isFocused }
-                            .border(
-                                width = if (isPortFocused) 3.dp else 0.dp,
-                                color = if (isPortFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = MaterialTheme.shapes.small
-                            ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        )
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Botón: Probar Conexión
-                    var isTestFocused by remember { mutableStateOf(false) }
-                    val testScale by animateFloatAsState(if (isTestFocused) 1.05f else 1f, label = "testScale")
-
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isChecking = true
-                                checkResult = null
-                                val config = AceStreamManager.AceStreamConfig(
-                                    host = host,
-                                    port = port.toIntOrNull() ?: 6878,
-                                    isCustom = true
-                                )
-                                checkResult = aceStreamManager.isEngineAvailable(config)
-                                isChecking = false
-                            }
-                        },
-                        enabled = !isChecking && host.isNotEmpty() && port.isNotEmpty(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isTestFocused = it.isFocused }
-                            .scale(testScale)
-                            .border(
-                                width = if (isTestFocused) 3.dp else 0.dp,
-                                color = if (isTestFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = ButtonDefaults.shape
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isTestFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
-                            contentColor = if (isTestFocused) Color.Black else Color.White
-                        )
-                    ) {
-                        if (isChecking) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White
-                            )
-                        } else {
-                            Icon(Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isChecking) "Probando..." else "Probar Conexión")
-                    }
-
-                    // Resultado de la prueba
-                    checkResult?.let { success ->
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    color = if (success) com.example.xuper.ui.theme.Success.copy(alpha = 0.1f)
-                                    else com.example.xuper.ui.theme.Error.copy(alpha = 0.1f),
-                                    shape = MaterialTheme.shapes.small
-                                )
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (success) Icons.Default.CheckCircle else Icons.Default.Error,
-                                contentDescription = null,
-                                tint = if (success) com.example.xuper.ui.theme.Success else com.example.xuper.ui.theme.Error
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                if (success) "✓ Conexión exitosa" else "✗ No se pudo conectar",
-                                color = if (success) com.example.xuper.ui.theme.Success else com.example.xuper.ui.theme.Error
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Botón: Escanear Red
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Escanear Red",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Busca automáticamente servidores Acestream en tu red local",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    var isScanFocused by remember { mutableStateOf(false) }
-                    val scanScale by animateFloatAsState(if (isScanFocused) 1.05f else 1f, label = "scanScale")
-
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isScanning = true
-                                foundHosts = emptyList()
-                                val baseIp = host.substringBeforeLast(".")
-                                foundHosts = aceStreamManager.scanLocalNetwork(baseIp)
-                                isScanning = false
-                            }
-                        },
-                        enabled = !isScanning,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isScanFocused = it.isFocused }
-                            .scale(scanScale)
-                            .border(
-                                width = if (isScanFocused) 3.dp else 0.dp,
-                                color = if (isScanFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = ButtonDefaults.shape
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isScanFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = if (isScanFocused) Color.Black else MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    ) {
-                        if (isScanning) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isScanning) "Escaneando..." else "Escanear Red")
-                    }
-
-                    // Resultados del escaneo
-                    if (foundHosts.isNotEmpty()) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Encontrados (${foundHosts.size}):",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        foundHosts.forEach { hostPort ->
-                            Spacer(Modifier.height(4.dp))
-                            TextButton(
-                                onClick = {
-                                    val parts = hostPort.split(":")
-                                    host = parts[0]
-                                    port = parts.getOrNull(1) ?: "6878"
-                                }
-                            ) {
-                                Text("→ $hostPort")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // Botón: Guardar
-        var isSaveFocused by remember { mutableStateOf(false) }
-        val saveScale by animateFloatAsState(if (isSaveFocused) 1.05f else 1f, label = "saveScale")
-
+        // Botón Añadir Proxy
+        var isAddFocused by remember { mutableStateOf(false) }
         Button(
             onClick = {
-                if (useCustom) {
-                    aceStreamManager.saveCustomConfig(host, port.toIntOrNull() ?: 6878)
-                } else {
-                    aceStreamManager.useLocalConfig()
-                }
-                // TODO: Navegar atrás o mostrar confirmación
+                showEditDialog = AceStreamProxy(
+                    name = "Nuevo Proxy",
+                    host = "127.0.0.1",
+                    port = 6878
+                )
+                isAddingNew = true
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .onFocusChanged { isSaveFocused = it.isFocused }
-                .scale(saveScale)
+                .onFocusChanged { isAddFocused = it.isFocused }
                 .border(
-                    width = if (isSaveFocused) 3.dp else 0.dp,
-                    color = if (isSaveFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                    width = if (isAddFocused) 2.dp else 0.dp,
+                    color = if (isAddFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                     shape = ButtonDefaults.shape
-                ),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSaveFocused) com.example.xuper.ui.theme.SelectionIndicator else MaterialTheme.colorScheme.primary,
-                contentColor = Color.Black
-            )
+                )
         ) {
-            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Guardar Configuración")
+            Text("AÑADIR NUEVO PROXY ACESTREAM")
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        // Info
+        // Info Docker m3u_stream_proxy
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             )
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        "Docker Command:",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "docker run -d --name acestream -p 6878:6878 magnetikonline/acestream-server",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Configuración m3u_stream_proxy:", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                 }
+                Spacer(Modifier.height(6.dp))
+                Text("• Sin VPN: port 6879 (docker-compose-ace-no-proxy.yml)", style = MaterialTheme.typography.bodySmall)
+                Text("• Con VPN: port 6878 (docker-compose-ace-proxy.yml con Gluetun)", style = MaterialTheme.typography.bodySmall)
             }
         }
+    }
+
+    // Diálogo Editar / Añadir Proxy
+    showEditDialog?.let { proxyToEdit ->
+        var name by remember { mutableStateOf(proxyToEdit.name) }
+        var host by remember { mutableStateOf(proxyToEdit.host) }
+        var port by remember { mutableStateOf(proxyToEdit.port.toString()) }
+        var isVpn by remember { mutableStateOf(proxyToEdit.isVpn) }
+
+        AlertDialog(
+            onDismissRequest = { showEditDialog = null },
+            title = { Text(if (isAddingNew) "Añadir Proxy AceStream" else "Editar Proxy") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Nombre del Proxy") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = host,
+                        onValueChange = { host = it },
+                        label = { Text("Host / IP") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = port,
+                        onValueChange = { if (it.all { c -> c.isDigit() }) port = it },
+                        label = { Text("Puerto") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = isVpn, onCheckedChange = { isVpn = it })
+                        Spacer(Modifier.width(8.dp))
+                        Text("Utiliza VPN (Gluetun / Tunnel)")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val updated = proxyToEdit.copy(
+                        name = name.ifEmpty { "AceStream Proxy" },
+                        host = host.ifEmpty { "127.0.0.1" },
+                        port = port.toIntOrNull() ?: 6878,
+                        isVpn = isVpn
+                    )
+                    aceStreamManager.addOrUpdateProxy(updated)
+                    refreshProxies()
+                    showEditDialog = null
+                    isAddingNew = false
+                }) {
+                    Text("GUARDAR")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showEditDialog = null
+                    isAddingNew = false
+                }) {
+                    Text("CANCELAR")
+                }
+            }
+        )
     }
 }

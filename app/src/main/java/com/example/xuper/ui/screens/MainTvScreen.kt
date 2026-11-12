@@ -52,9 +52,9 @@ fun MainTvScreen(
     onFullScreen: () -> Unit,
     filterFocusRequester: FocusRequester,
     onRefreshM3U: () -> Unit,
+    isSingleColumn: Boolean,
 ) {
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
-    var isSingleColumn by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val layoutConfig = rememberAdaptiveLayoutConfig()
 
@@ -92,52 +92,27 @@ fun MainTvScreen(
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            var isTvRefreshFocused by remember { mutableStateOf(false) }
-            val tvRefreshScale by animateFloatAsState(if (isTvRefreshFocused) 1.15f else 1f, label = "tvRefreshScale")
-            IconButton(
-                onClick = onRefreshM3U,
-                modifier = Modifier
-                    .onFocusChanged { isTvRefreshFocused = it.isFocused }
-                    .scale(tvRefreshScale)
-                    .border(
-                        width = if (isTvRefreshFocused) 3.dp else 0.dp,
-                        color = if (isTvRefreshFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                        shape = CircleShape
-                    ),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = if (isTvRefreshFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (isTvRefreshFocused) Color.Black else MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refrescar Listas")
+            if (layoutConfig.isCompact) {
+                // En móvil incluir botones de refresco y vista en cabecera
+                IconButton(onClick = onRefreshM3U, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refrescar Listas", modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = { /* Acción manejada por padre */ }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
+                        contentDescription = "Cambiar vista",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            var isToggleLayoutFocused by remember { mutableStateOf(false) }
-            val toggleLayoutScale by animateFloatAsState(if (isToggleLayoutFocused) 1.15f else 1f, label = "toggleLayoutScale")
-            IconButton(
-                onClick = { isSingleColumn = !isSingleColumn },
-                modifier = Modifier
-                    .onFocusChanged { isToggleLayoutFocused = it.isFocused }
-                    .scale(toggleLayoutScale)
-                    .border(
-                        width = if (isToggleLayoutFocused) 3.dp else 0.dp,
-                        color = if (isToggleLayoutFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                        shape = CircleShape
-                    ),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = if (isToggleLayoutFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (isToggleLayoutFocused) Color.Black else MaterialTheme.colorScheme.primary
-                )
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
-                    contentDescription = "Cambiar vista"
-                )
-            }
-
-            LazyRow(modifier = Modifier.weight(1f)) {
                 items(listSources.size) { index ->
                     val name = listSources[index]
                     var isFocused by remember { mutableStateOf(value = false) }
@@ -220,42 +195,37 @@ fun MainTvScreen(
             modifier = Modifier.weight(1f)
         )
 
-        // Buscador movido al final
-        var isSearchFocused by remember { mutableStateOf(value = false) }
-        val searchScale by animateFloatAsState(if (isSearchFocused) 1.02f else 1f, label = "searchScale")
-        TextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .onFocusChanged { isSearchFocused = it.isFocused }
-                .scale(searchScale)
-                .border(
-                    width = if (isSearchFocused) 3.dp else 0.dp,
-                    color = if (isSearchFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                    shape = MaterialTheme.shapes.small,
-                ),
-            placeholder = { Text(stringResourceAI("search_placeholder")) },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = null,
-                    tint = if (isSearchFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        // Buscador al pie en formato móvil compacto
+        if (layoutConfig.isCompact) {
+            TextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                placeholder = { Text(stringResourceAI("search_placeholder")) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                    unfocusedIndicatorColor = Color.Transparent,
                 )
-            },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                unfocusedIndicatorColor = Color.Transparent,
-            ),
-        )
+            )
+        }
     }
 
     showPlayerDialog?.let { channel ->
-        var selectedPlayerType by remember { mutableStateOf<String?>(null) }
+        val isAcestream = remember(channel.url) { PlayerUtils.isAceStreamUrl(channel.url) }
+        val aceManager = remember { com.example.xuper.data.AceStreamManager(context) }
+        val proxies = remember { aceManager.getProxies() }
 
         AlertDialog(
             onDismissRequest = { showPlayerDialog = null },
@@ -272,8 +242,6 @@ fun MainTvScreen(
                         )
                     }
 
-                    // Indicador si es Acestream
-                    val isAcestream = remember { PlayerUtils.isAceStreamUrl(channel.url) }
                     if (isAcestream) {
                         Spacer(Modifier.height(8.dp))
                         Row(
@@ -304,39 +272,87 @@ fun MainTvScreen(
             },
             containerColor = MaterialTheme.colorScheme.surface,
             confirmButton = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Botón: Reproductor Interno
-                    var isIntFocused by remember { mutableStateOf(false) }
-                    val intScale by animateFloatAsState(if (isIntFocused) 1.05f else 1f, label = "intScale")
-                    Button(
-                        onClick = {
-                            selectedPlayerType = "internal"
-                            onChannelSelected(channel)
-                            showPlayerDialog = null
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isIntFocused = it.isFocused }
-                            .scale(intScale)
-                            .border(
-                                width = if (isIntFocused) 3.dp else 0.dp,
-                                color = if (isIntFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = ButtonDefaults.shape,
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (isAcestream) {
+                        Text(
+                            "Reproducción Interna (Proxy AceStream):",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        proxies.forEach { proxy ->
+                            var isProxyFocused by remember { mutableStateOf(false) }
+                            val proxyScale by animateFloatAsState(if (isProxyFocused) 1.03f else 1f, label = "proxyScale")
+
+                            Button(
+                                onClick = {
+                                    aceManager.setSelectedProxy(proxy)
+                                    val formattedUrl = aceManager.getFormattedUrlForProxy(channel.url, proxy)
+                                    onChannelSelected(channel.copy(url = formattedUrl))
+                                    showPlayerDialog = null
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onFocusChanged { isProxyFocused = it.isFocused }
+                                    .scale(proxyScale)
+                                    .border(
+                                        width = if (isProxyFocused) 3.dp else 0.dp,
+                                        color = if (isProxyFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                        shape = ButtonDefaults.shape
+                                    ),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isProxyFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
+                                    contentColor = if (isProxyFocused) Color.Black else Color.White
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(if (proxy.isVpn) "🔒" else "🌐")
+                                        Column(horizontalAlignment = Alignment.Start) {
+                                            Text(proxy.name, style = MaterialTheme.typography.titleMedium)
+                                            Text(
+                                                "${proxy.host}:${proxy.port}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isProxyFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    } else {
+                        // Reproductor Interno Estándar
+                        var isIntFocused by remember { mutableStateOf(false) }
+                        val intScale by animateFloatAsState(if (isIntFocused) 1.05f else 1f, label = "intScale")
+                        Button(
+                            onClick = {
+                                onChannelSelected(channel)
+                                showPlayerDialog = null
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { isIntFocused = it.isFocused }
+                                .scale(intScale)
+                                .border(
+                                    width = if (isIntFocused) 3.dp else 0.dp,
+                                    color = if (isIntFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = ButtonDefaults.shape,
+                                ),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isIntFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isIntFocused) Color.Black else Color.White,
                             ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isIntFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
-                            contentColor = if (isIntFocused) Color.Black else Color.White,
-                        ),
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column(horizontalAlignment = Alignment.Start) {
-                            Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Con stats P2P en pantalla",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isIntFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
-                            )
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.Start) {
+                                Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
+                            }
                         }
                     }
 
@@ -345,16 +361,12 @@ fun MainTvScreen(
                     val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
                     Button(
                         onClick = {
-                            selectedPlayerType = "external"
                             val rawUrl = channel.url.trim()
                             val aceId = PlayerUtils.getAceId(rawUrl)
 
                             if (aceId.isNotEmpty()) {
-                                // Usar AceStreamManager para obtener URL procesada
-                                val aceManager = com.example.xuper.data.AceStreamManager(context)
-                                val config = aceManager.getConfig()
-                                val streamUrl = "http://${config.host}:${config.port}/ace/getstream?id=$aceId"
-
+                                val currentProxy = aceManager.getSelectedProxy()
+                                val streamUrl = currentProxy.getStreamUrl(aceId)
                                 PlayerUtils.openInAceStreamApp(context, streamUrl)
                             } else {
                                 val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -391,7 +403,7 @@ fun MainTvScreen(
                         Column(horizontalAlignment = Alignment.Start) {
                             Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Abrir en app externa",
+                                "Abrir en app externa (AceStream)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (isExtFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
                             )

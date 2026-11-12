@@ -7,15 +7,32 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetAddress
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * Gestor de conexión a Acestream Engine
- * Soporta:
- * - Engine local en Android (127.0.0.1:6878)
- * - Engine en Docker en red local (IP:PORT custom)
+ * Representa una instancia de Proxy de AceStream (Motor Local, Proxy Directo sin VPN, Proxy con VPN, etc.)
+ */
+data class AceStreamProxy(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val host: String,
+    val port: Int,
+    val isVpn: Boolean = false,
+    val isDefault: Boolean = false
+) {
+    val baseUrl: String get() = "http://$host:$port"
+
+    fun getManifestUrl(aceId: String): String = "$baseUrl/ace/manifest.m3u8?id=$aceId"
+    fun getStreamUrl(aceId: String): String = "$baseUrl/ace/getstream?id=$aceId"
+    fun getStatUrl(aceId: String): String = "$baseUrl/ace/stat?id=$aceId"
+}
+
+/**
+ * Gestor de conexión a proxies/motores de AceStream Engine
  */
 class AceStreamManager(context: Context) {
 
@@ -26,12 +43,31 @@ class AceStreamManager(context: Context) {
         .build()
 
     companion object {
-        private const val PREF_CUSTOM_HOST = "custom_host"
-        private const val PREF_CUSTOM_PORT = "custom_port"
-        private const val PREF_USE_CUSTOM = "use_custom"
+        private const val PREF_PROXIES_JSON = "proxies_list_json"
+        private const val PREF_SELECTED_PROXY_ID = "selected_proxy_id"
 
         const val DEFAULT_LOCAL_HOST = "127.0.0.1"
         const val DEFAULT_LOCAL_PORT = 6878
+
+        // Proxies por defecto configurados en m3u_stream_proxy
+        val DEFAULT_PROXIES = listOf(
+            AceStreamProxy(
+                id = "no_vpn",
+                name = "Proxy Sin VPN",
+                host = "125.125.125.125",
+                port = 6878,
+                isVpn = false,
+                isDefault = true
+            ),
+            AceStreamProxy(
+                id = "vpn",
+                name = "Proxy Con VPN",
+                host = "125.125.125.125",
+                port = 6879,
+                isVpn = true,
+                isDefault = false
+            )
+        )
     }
 
     data class AceStreamConfig(
@@ -41,17 +77,9 @@ class AceStreamManager(context: Context) {
     ) {
         val baseUrl: String get() = "http://$host:$port"
 
-        fun getStreamUrl(contentId: String): String {
-            return "$baseUrl/ace/getstream?id=$contentId"
-        }
-
-        fun getManifestUrl(contentId: String): String {
-            return "$baseUrl/ace/manifest.m3u8?id=$contentId"
-        }
-
-        fun getStatUrl(contentId: String): String {
-            return "$baseUrl/ace/stat?id=$contentId"
-        }
+        fun getStreamUrl(contentId: String): String = "$baseUrl/ace/getstream?id=$contentId"
+        fun getManifestUrl(contentId: String): String = "$baseUrl/ace/manifest.m3u8?id=$contentId"
+        fun getStatUrl(contentId: String): String = "$baseUrl/ace/stat?id=$contentId"
     }
 
     data class AceStreamStats(
@@ -63,63 +91,154 @@ class AceStreamManager(context: Context) {
     )
 
     /**
-     * Obtener configuración actual
+     * Obtener la lista completa de proxies configurados
      */
-    fun getConfig(): AceStreamConfig {
-        val useCustom = prefs.getBoolean(PREF_USE_CUSTOM, false)
+    fun getProxies(): List<AceStreamProxy> {
+        val jsonStr = prefs.getString(PREF_PROXIES_JSON, null)
+        if (jsonStr.isNullOrEmpty() || jsonStr.contains("\"id\":\"local\"")) {
+            saveProxies(DEFAULT_PROXIES)
+            return DEFAULT_PROXIES
+        }
 
-        return if (useCustom) {
-            AceStreamConfig(
-                host = prefs.getString(PREF_CUSTOM_HOST, DEFAULT_LOCAL_HOST) ?: DEFAULT_LOCAL_HOST,
-                port = prefs.getInt(PREF_CUSTOM_PORT, DEFAULT_LOCAL_PORT),
-                isCustom = true
-            )
-        } else {
-            AceStreamConfig(
-                host = DEFAULT_LOCAL_HOST,
-                port = DEFAULT_LOCAL_PORT,
-                isCustom = false
-            )
+        return try {
+            val jsonArray = JSONArray(jsonStr)
+            val list = mutableListOf<AceStreamProxy>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                list.add(
+                    AceStreamProxy(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        name = obj.optString("name", "Proxy AceStream"),
+                        host = obj.optString("host", DEFAULT_LOCAL_HOST),
+                        port = obj.optInt("port", DEFAULT_LOCAL_PORT),
+                        isVpn = obj.optBoolean("isVpn", false),
+                        isDefault = obj.optBoolean("isDefault", false)
+                    )
+                )
+            }
+            if (list.isEmpty()) DEFAULT_PROXIES else list
+        } catch (e: Exception) {
+            DEFAULT_PROXIES
         }
     }
 
     /**
-     * Guardar configuración custom
+     * Guardar la lista de proxies
+     */
+    fun saveProxies(proxies: List<AceStreamProxy>) {
+        val jsonArray = JSONArray()
+        proxies.forEach { proxy ->
+            jsonArray.put(JSONObject().apply {
+                put("id", proxy.id)
+                put("name", proxy.name)
+                put("host", proxy.host)
+                put("port", proxy.port)
+                put("isVpn", proxy.isVpn)
+                put("isDefault", proxy.isDefault)
+            })
+        }
+        prefs.edit().putString(PREF_PROXIES_JSON, jsonArray.toString()).apply()
+    }
+
+    /**
+     * Obtener el proxy actualmente seleccionado
+     */
+    fun getSelectedProxy(): AceStreamProxy {
+        val proxies = getProxies()
+        val selectedId = prefs.getString(PREF_SELECTED_PROXY_ID, null)
+        return proxies.find { it.id == selectedId }
+            ?: proxies.find { it.isDefault }
+            ?: proxies.firstOrNull()
+            ?: DEFAULT_PROXIES.first()
+    }
+
+    /**
+     * Guardar el ID del proxy seleccionado
+     */
+    fun setSelectedProxy(proxy: AceStreamProxy) {
+        prefs.edit().putString(PREF_SELECTED_PROXY_ID, proxy.id).apply()
+    }
+
+    /**
+     * Añadir o actualizar un proxy
+     */
+    fun addOrUpdateProxy(proxy: AceStreamProxy) {
+        val current = getProxies().toMutableList()
+        val index = current.indexOfFirst { it.id == proxy.id }
+        if (index >= 0) {
+            current[index] = proxy
+        } else {
+            current.add(proxy)
+        }
+        saveProxies(current)
+    }
+
+    /**
+     * Eliminar un proxy
+     */
+    fun deleteProxy(id: String) {
+        val current = getProxies().filter { it.id != id }
+        saveProxies(current)
+    }
+
+    /**
+     * Formatear la URL de reproducción para un proxy específico
+     */
+    fun getFormattedUrlForProxy(originalUrl: String, proxy: AceStreamProxy): String {
+        val aceId = PlayerUtils.getAceId(originalUrl)
+        if (aceId.isNotEmpty()) {
+            return proxy.getManifestUrl(aceId)
+        }
+
+        // Si no se extrae un ID de 40 caracteres, reemplazar el host/puerto
+        return originalUrl
+            .replace("127.0.0.1:6878", "${proxy.host}:${proxy.port}")
+            .replace("localhost:6878", "${proxy.host}:${proxy.port}")
+    }
+
+    /**
+     * Compatibilidad con getConfig() legacy
+     */
+    fun getConfig(): AceStreamConfig {
+        val active = getSelectedProxy()
+        return AceStreamConfig(
+            host = active.host,
+            port = active.port,
+            isCustom = active.host != DEFAULT_LOCAL_HOST || active.port != DEFAULT_LOCAL_PORT
+        )
+    }
+
+    /**
+     * Guardar configuración custom legacy
      */
     fun saveCustomConfig(host: String, port: Int) {
-        prefs.edit()
-            .putString(PREF_CUSTOM_HOST, host)
-            .putInt(PREF_CUSTOM_PORT, port)
-            .putBoolean(PREF_USE_CUSTOM, true)
-            .apply()
+        val customProxy = AceStreamProxy(
+            id = "custom",
+            name = "Proxy Personalizado",
+            host = host,
+            port = port,
+            isVpn = false,
+            isDefault = true
+        )
+        addOrUpdateProxy(customProxy)
+        setSelectedProxy(customProxy)
     }
 
     /**
-     * Usar configuración local por defecto
+     * Verificar disponibilidad de un proxy
      */
-    fun useLocalConfig() {
-        prefs.edit()
-            .putBoolean(PREF_USE_CUSTOM, false)
-            .apply()
-    }
-
-    /**
-     * Verificar si el engine está disponible
-     */
-    suspend fun isEngineAvailable(config: AceStreamConfig = getConfig()): Boolean {
+    suspend fun isProxyAvailable(proxy: AceStreamProxy = getSelectedProxy()): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // Primero verificar conectividad básica
-                if (config.isCustom) {
-                    val address = InetAddress.getByName(config.host)
+                if (proxy.host != DEFAULT_LOCAL_HOST && proxy.host != "localhost") {
+                    val address = InetAddress.getByName(proxy.host)
                     if (!address.isReachable(3000)) {
                         return@withContext false
                     }
                 }
 
-                // Verificar endpoint de Acestream
                 val request = Request.Builder()
-                    .url("${config.baseUrl}/webui/api/service?method=get_version")
+                    .url("${proxy.baseUrl}/webui/api/service?method=get_version")
                     .build()
 
                 val response = client.newCall(request).execute()
@@ -130,19 +249,23 @@ class AceStreamManager(context: Context) {
         }
     }
 
+    suspend fun isEngineAvailable(config: AceStreamConfig = getConfig()): Boolean {
+        return isProxyAvailable(AceStreamProxy(id = "legacy", name = "Legacy", host = config.host, port = config.port))
+    }
+
     /**
-     * Obtener estadísticas del stream (probando múltiples endpoints si es necesario)
+     * Obtener estadísticas de AceStream para un proxy
      */
-    suspend fun getStreamStats(contentIdOrUrl: String, config: AceStreamConfig = getConfig()): AceStreamStats? {
+    suspend fun getStreamStatsForProxy(contentIdOrUrl: String, proxy: AceStreamProxy = getSelectedProxy()): AceStreamStats? {
         return withContext(Dispatchers.IO) {
             val cleanId = PlayerUtils.getAceId(contentIdOrUrl).ifEmpty { contentIdOrUrl.trim() }
             if (cleanId.isEmpty()) return@withContext null
 
             val urlsToTry = listOf(
-                "${config.baseUrl}/ace/stat?id=$cleanId",
-                "${config.baseUrl}/ace/stat?content_id=$cleanId",
-                "${config.baseUrl}/ace/stat?infohash=$cleanId",
-                "${config.baseUrl}/webui/api/service?method=get_stream_status&id=$cleanId"
+                "${proxy.baseUrl}/ace/stat?id=$cleanId",
+                "${proxy.baseUrl}/ace/stat?content_id=$cleanId",
+                "${proxy.baseUrl}/ace/stat?infohash=$cleanId",
+                "${proxy.baseUrl}/webui/api/service?method=get_stream_status&id=$cleanId"
             )
 
             var lastStats: AceStreamStats? = null
@@ -162,7 +285,6 @@ class AceStreamManager(context: Context) {
                         }
                     }
                 } catch (_: Exception) {
-                    // Continuar probando los siguientes endpoints
                 }
             }
 
@@ -170,9 +292,11 @@ class AceStreamManager(context: Context) {
         }
     }
 
-    /**
-     * Parsear estadísticas JSON de Acestream de forma robusta
-     */
+    suspend fun getStreamStats(contentIdOrUrl: String, config: AceStreamConfig = getConfig()): AceStreamStats? {
+        val proxy = AceStreamProxy("legacy", "Legacy", config.host, config.port)
+        return getStreamStatsForProxy(contentIdOrUrl, proxy)
+    }
+
     private fun parseStats(json: String): AceStreamStats {
         try {
             val root = JSONObject(json)
@@ -201,7 +325,7 @@ class AceStreamManager(context: Context) {
 
             return AceStreamStats(
                 peers = if (peers < 0) 0 else peers,
-                downloadSpeed = downSpeed / 1024f, // Convertir a KB/s
+                downloadSpeed = downSpeed / 1024f,
                 uploadSpeed = upSpeed / 1024f,
                 status = status,
                 isLive = status == "dl" || status == "prebuf"
@@ -213,26 +337,20 @@ class AceStreamManager(context: Context) {
         }
     }
 
-    /**
-     * Escanear red local en busca de Acestream Engine
-     */
     suspend fun scanLocalNetwork(baseIp: String = "192.168.1"): List<String> {
         return withContext(Dispatchers.IO) {
             val foundHosts = mutableListOf<String>()
-            val commonPorts = listOf(6878, 6877, 8765) // Puertos comunes de Acestream
+            val commonPorts = listOf(6878, 6879, 6877, 8765)
 
-            // Escanear rango común de IPs (1-254)
             for (i in 1..254) {
                 val host = "$baseIp.$i"
-
                 for (port in commonPorts) {
                     try {
-                        val config = AceStreamConfig(host, port, true)
-                        if (isEngineAvailable(config)) {
+                        val proxy = AceStreamProxy("scan", "Scan", host, port)
+                        if (isProxyAvailable(proxy)) {
                             foundHosts.add("$host:$port")
                         }
-                    } catch (e: Exception) {
-                        // Continuar con siguiente IP
+                    } catch (_: Exception) {
                     }
                 }
             }
@@ -241,48 +359,11 @@ class AceStreamManager(context: Context) {
         }
     }
 
-    /**
-     * Procesar URL de canal para usar el servidor configurado
-     * Reemplaza 127.0.0.1:6878 por el servidor custom si está configurado
-     */
     fun processChannelUrl(originalUrl: String): String {
-        val config = getConfig()
-
-        // Si no es custom, devolver URL original
-        if (!config.isCustom) {
-            return originalUrl
-        }
-
-        // Reemplazar 127.0.0.1:6878 por el servidor configurado
-        var processedUrl = originalUrl
-            .replace("127.0.0.1:6878", "${config.host}:${config.port}")
-            .replace("localhost:6878", "${config.host}:${config.port}")
-
-        // También reemplazar http://127.0.0.1 sin puerto explícito
-        if (processedUrl.contains("127.0.0.1") || processedUrl.contains("localhost")) {
-            processedUrl = processedUrl
-                .replace("http://127.0.0.1", "http://${config.host}")
-                .replace("http://localhost", "http://${config.host}")
-        }
-
-        return processedUrl
+        return getFormattedUrlForProxy(originalUrl, getSelectedProxy())
     }
 
-    /**
-     * Obtener URL procesada para reproducción interna (HLS)
-     */
     fun getInternalPlaybackUrl(originalUrl: String): String {
-        val aceId = originalUrl.let { url ->
-            // Extraer ID de Acestream
-            val regex = Regex("[a-fA-F0-9]{40}")
-            regex.find(url)?.value ?: ""
-        }
-
-        if (aceId.isEmpty()) {
-            return processChannelUrl(originalUrl)
-        }
-
-        val config = getConfig()
-        return config.getManifestUrl(aceId)
+        return getFormattedUrlForProxy(originalUrl, getSelectedProxy())
     }
 }
