@@ -66,7 +66,7 @@ object ExoPlayerFactory {
 
         // Data Source Factory con headers customizados
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("Xuper/1.0 (Android)")
+            .setUserAgent("VLC/3.0.18 LibVLC/3.0.18 (Android; Mobile)")
             .setConnectTimeoutMs(15_000) // 15 segundos
             .setReadTimeoutMs(30_000)    // 30 segundos
             .setAllowCrossProtocolRedirects(true)

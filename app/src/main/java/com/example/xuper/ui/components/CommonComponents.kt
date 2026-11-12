@@ -224,22 +224,45 @@ fun WebPlayer(url: String, modifier: Modifier = Modifier) {
 @Composable
 fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    var currentUrl by remember(url) { mutableStateOf(url) }
+
+    val mediaItem = remember(currentUrl) {
+        val builder = MediaItem.Builder().setUri(currentUrl)
+        when {
+            currentUrl.contains("manifest.m3u8") || currentUrl.contains(".m3u8") -> {
+                builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+            }
+            currentUrl.contains("getstream") || currentUrl.contains(".ts") -> {
+                builder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T)
+            }
+        }
+        builder.build()
+    }
 
     // Usar factory optimizado en lugar de crear siempre nuevo
-    val exoPlayer = remember(url) {
+    val exoPlayer = remember(currentUrl) {
         com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false).apply {
-            setMediaItem(MediaItem.fromUri(url))
+            setMediaItem(mediaItem)
             prepare()
             playWhenReady = true
         }
     }
 
-    // Listener de estado para debugging
+    // Listener de estado para debugging y fallback automático
     DisposableEffect(exoPlayer) {
         val listener = object : androidx.media3.common.Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                // Log state changes para debugging
-                android.util.Log.d("VideoPlayer", "State: $playbackState")
+                android.util.Log.d("VideoPlayer", "State: $playbackState for $currentUrl")
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("VideoPlayer", "PlaybackError para $currentUrl: ${error.message}", error)
+                // Si falla la manifest de HLS, intentar fallback automático al endpoint directo getstream
+                if (currentUrl.contains("manifest.m3u8")) {
+                    val fallbackUrl = currentUrl.replace("manifest.m3u8", "getstream")
+                    android.util.Log.d("VideoPlayer", "Probando fallback a: $fallbackUrl")
+                    currentUrl = fallbackUrl
+                }
             }
         }
         exoPlayer.addListener(listener)
@@ -248,7 +271,6 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
             exoPlayer.removeListener(listener)
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
-            // NO liberar aquí si usamos pool, solo limpiar
         }
     }
 
