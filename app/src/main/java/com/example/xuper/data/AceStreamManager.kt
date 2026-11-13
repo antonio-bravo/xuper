@@ -160,6 +160,17 @@ class AceStreamManager(context: Context) {
     }
 
     /**
+     * Obtener el siguiente proxy disponible para failover automático
+     */
+    fun getNextFailoverProxy(currentProxy: AceStreamProxy): AceStreamProxy? {
+        val proxies = getProxies()
+        if (proxies.size <= 1) return null
+        val currentIndex = proxies.indexOfFirst { it.id == currentProxy.id }
+        val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % proxies.size else 0
+        return proxies[nextIndex]
+    }
+
+    /**
      * Añadir o actualizar un proxy
      */
     fun addOrUpdateProxy(proxy: AceStreamProxy) {

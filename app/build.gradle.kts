@@ -75,9 +75,10 @@ dependencies {
     implementation(libs.androidx.adaptive.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation.suite)
 
-    // Media3 (ExoPlayer)
+    // Media3 (ExoPlayer) & Cast MediaRouter
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.mediarouter)
     implementation(libs.androidx.media3.hls)
     
     // Coil (Image loading)

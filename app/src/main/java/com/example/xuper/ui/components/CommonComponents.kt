@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PlayCircle
@@ -38,6 +39,20 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
 import com.example.xuper.util.PlayerUtils
+
+fun openCastStream(context: android.content.Context, streamUrl: String) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+        setDataAndType(android.net.Uri.parse(streamUrl), "application/x-mpegurl")
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    val chooser = android.content.Intent.createChooser(intent, "Emitir a TV / Chromecast (Google Cast & DLNA)")
+    chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(chooser)
+    } catch (_: Exception) {
+        android.widget.Toast.makeText(context, "No se encontró ningún receptor de emisión", android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
 
 @Composable
 fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
@@ -60,15 +75,27 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
     if (isAceStream) {
         var activeProxy by remember { mutableStateOf(aceStreamManager.getSelectedProxy()) }
         var showProxyDialog by remember { mutableStateOf(false) }
+        var failoverNotice by remember { mutableStateOf<String?>(null) }
 
         val hlsUrl = remember(url, activeProxy) {
             aceStreamManager.getFormattedUrlForProxy(url, activeProxy)
         }
 
         Box(modifier = modifier.fillMaxSize()) {
-            VideoPlayer(url = hlsUrl, modifier = Modifier.fillMaxSize())
+            VideoPlayer(
+                url = hlsUrl,
+                modifier = Modifier.fillMaxSize(),
+                onError = {
+                    val nextProxy = aceStreamManager.getNextFailoverProxy(activeProxy)
+                    if (nextProxy != null && nextProxy.id != activeProxy.id) {
+                        failoverNotice = "⚡ Auto-Failover: Cambiando a ${nextProxy.name}..."
+                        activeProxy = nextProxy
+                        aceStreamManager.setSelectedProxy(nextProxy)
+                    }
+                }
+            )
 
-            // Overlay superior con stats y selector de proxy en vivo
+            // Overlay superior con stats, selector de proxy y botón Cast
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -109,6 +136,57 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
                         Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Proxy", modifier = Modifier.size(16.dp))
                     }
                 }
+
+                // Botón Chromecast / Cast
+                var isCastBtnFocused by remember { mutableStateOf(false) }
+                val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
+
+                Surface(
+                    onClick = { openCastStream(context, hlsUrl) },
+                    shape = MaterialTheme.shapes.small,
+                    color = Color.Black.copy(alpha = 0.75f),
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .onFocusChanged { isCastBtnFocused = it.isFocused }
+                        .scale(castScale)
+                        .border(
+                            width = if (isCastBtnFocused) 2.dp else 0.dp,
+                            color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
+                        Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // Aviso flotante de Auto-Failover
+            failoverNotice?.let { msg ->
+                LaunchedEffect(msg) {
+                    kotlinx.coroutines.delay(4000)
+                    failoverNotice = null
+                }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp),
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Text(
+                        text = msg,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
             }
 
             if (showProxyDialog) {
@@ -126,7 +204,39 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
     } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || (!url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts")))) {
         WebPlayer(url = url, modifier = modifier)
     } else {
-        VideoPlayer(url = url, modifier = modifier)
+        Box(modifier = modifier.fillMaxSize()) {
+            VideoPlayer(url = url, modifier = Modifier.fillMaxSize())
+
+            // Botón Cast para reproductores estándar
+            var isCastBtnFocused by remember { mutableStateOf(false) }
+            val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
+
+            Surface(
+                onClick = { openCastStream(context, url) },
+                shape = MaterialTheme.shapes.small,
+                color = Color.Black.copy(alpha = 0.75f),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .onFocusChanged { isCastBtnFocused = it.isFocused }
+                    .scale(castScale)
+                    .border(
+                        width = if (isCastBtnFocused) 2.dp else 0.dp,
+                        color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
+                    Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 
@@ -231,7 +341,11 @@ data class AudioTrackOption(
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
+fun VideoPlayer(
+    url: String,
+    modifier: Modifier = Modifier,
+    onError: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     var currentUrl by remember(url) { mutableStateOf(url) }
 
@@ -302,6 +416,8 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
                     val fallbackUrl = currentUrl.replace("manifest.m3u8", "getstream")
                     android.util.Log.d("VideoPlayer", "Probando fallback a: $fallbackUrl")
                     currentUrl = fallbackUrl
+                } else {
+                    onError?.invoke()
                 }
             }
         }
