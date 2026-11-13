@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.PlayCircle
@@ -220,11 +221,22 @@ fun WebPlayer(url: String, modifier: Modifier = Modifier) {
     }
 }
 
+data class AudioTrackOption(
+    val groupIndex: Int,
+    val trackIndex: Int,
+    val label: String,
+    val language: String,
+    val isSelected: Boolean
+)
+
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var currentUrl by remember(url) { mutableStateOf(url) }
+
+    var audioTracks by remember { mutableStateOf<List<AudioTrackOption>>(emptyList()) }
+    var showAudioDialog by remember { mutableStateOf(false) }
 
     val mediaItem = remember(currentUrl) {
         val builder = MediaItem.Builder().setUri(currentUrl)
@@ -248,11 +260,39 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
         }
     }
 
-    // Listener de estado para debugging y fallback automático
+    // Listener de estado, pistas de audio y fallback automático
     DisposableEffect(exoPlayer) {
         val listener = object : androidx.media3.common.Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 android.util.Log.d("VideoPlayer", "State: $playbackState for $currentUrl")
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val list = mutableListOf<AudioTrackOption>()
+                for (gIndex in 0 until tracks.groups.size) {
+                    val group = tracks.groups[gIndex]
+                    if (group.type == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                        for (tIndex in 0 until group.length) {
+                            val format = group.getTrackFormat(tIndex)
+                            val lang = format.language.orEmpty().uppercase()
+                            val label = when {
+                                !format.label.isNullOrEmpty() -> format.label!!
+                                lang.isNotEmpty() -> "Idioma: $lang"
+                                else -> "Pista de Audio ${tIndex + 1}"
+                            }
+                            list.add(
+                                AudioTrackOption(
+                                    groupIndex = gIndex,
+                                    trackIndex = tIndex,
+                                    label = label,
+                                    language = lang,
+                                    isSelected = group.isTrackSelected(tIndex)
+                                )
+                            )
+                        }
+                    }
+                }
+                audioTracks = list
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -274,19 +314,137 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
         }
     }
 
-    AndroidView(
-        factory = {
-            PlayerView(context).apply {
-                player = exoPlayer
-                useController = true
-                keepScreenOn = true
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
+    Box(modifier = modifier.fillMaxSize()) {
+        AndroidView(
+            factory = {
+                PlayerView(context).apply {
+                    player = exoPlayer
+                    useController = true
+                    keepScreenOn = true
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Selector de Pistas de Audio (Visible cuando hay más de una pista detectada)
+        if (audioTracks.size > 1) {
+            val selectedTrack = audioTracks.find { it.isSelected } ?: audioTracks.firstOrNull()
+            var isAudioBtnFocused by remember { mutableStateOf(false) }
+            val btnScale by animateFloatAsState(if (isAudioBtnFocused) 1.1f else 1f, label = "audioBtnScale")
+
+            Surface(
+                onClick = { showAudioDialog = true },
+                shape = MaterialTheme.shapes.small,
+                color = Color.Black.copy(alpha = 0.75f),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 64.dp)
+                    .onFocusChanged { isAudioBtnFocused = it.isFocused }
+                    .scale(btnScale)
+                    .border(
+                        width = if (isAudioBtnFocused) 2.dp else 0.dp,
+                        color = if (isAudioBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.Audiotrack, contentDescription = "Pista de Audio", modifier = Modifier.size(16.dp))
+                    Text(
+                        text = selectedTrack?.label ?: "Audio",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Audio", modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+
+        if (showAudioDialog) {
+            AudioTrackSelectionDialog(
+                tracks = audioTracks,
+                onSelectTrack = { option ->
+                    val currentTracks = exoPlayer.currentTracks
+                    if (option.groupIndex < currentTracks.groups.size) {
+                        val group = currentTracks.groups[option.groupIndex]
+                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                            .buildUpon()
+                            .setOverrideForType(
+                                androidx.media3.common.TrackSelectionOverride(
+                                    group.mediaTrackGroup,
+                                    option.trackIndex
+                                )
+                            )
+                            .build()
+                    }
+                },
+                onDismiss = { showAudioDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun AudioTrackSelectionDialog(
+    tracks: List<AudioTrackOption>,
+    onSelectTrack: (AudioTrackOption) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Seleccionar Pista de Audio", style = MaterialTheme.typography.titleMedium) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                tracks.forEach { option ->
+                    var isFocused by remember { mutableStateOf(false) }
+                    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, label = "audioItemScale")
+
+                    OutlinedButton(
+                        onClick = {
+                            onSelectTrack(option)
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isFocused = it.isFocused }
+                            .scale(scale)
+                            .border(
+                                width = if (isFocused) 2.dp else if (option.isSelected) 1.5.dp else 0.dp,
+                                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else if (option.isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                shape = ButtonDefaults.shape
+                            ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (option.isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text(option.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            }
+                            if (option.isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = "Seleccionada", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
             }
         },
-        modifier = modifier.fillMaxSize()
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("CERRAR") }
+        }
     )
 }
 

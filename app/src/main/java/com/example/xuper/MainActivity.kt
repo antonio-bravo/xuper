@@ -139,7 +139,9 @@ class XuperAppState(
 
     fun playChannelFullScreen(channel: Channel?) {
         if (channel != null && !channel.url.isNullOrEmpty()) {
-            navigator.navigate(XuperNavKey.Player(channel.url))
+            val aceManager = com.example.xuper.data.AceStreamManager(context)
+            val formattedUrl = aceManager.getFormattedUrlForProxy(channel.url, aceManager.getSelectedProxy())
+            navigator.navigate(XuperNavKey.Player(formattedUrl))
         }
     }
 
