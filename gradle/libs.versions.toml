@@ -16,7 +16,7 @@ kotlin = "2.4.21"
 room = "2.8.5"
 ksp = "2.3.14"
 
-mediarouter = "1.8.1"
+mediarouter = "1.9.0"
 okhttp = "5.5.1"
 jsoup = "1.24.1"
 
