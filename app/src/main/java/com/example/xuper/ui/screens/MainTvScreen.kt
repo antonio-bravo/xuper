@@ -22,6 +22,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
@@ -53,7 +54,9 @@ fun MainTvScreen(
     filterFocusRequester: FocusRequester,
     onRefreshM3U: () -> Unit,
     isSingleColumn: Boolean,
-    onToggleSingleColumn: () -> Unit = {}
+    onToggleSingleColumn: () -> Unit = {},
+    availableUpdate: com.example.xuper.util.AppUpdateInfo? = null,
+    onOpenUpdateDialog: () -> Unit = {}
 ) {
     var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
     val context = LocalContext.current
@@ -81,6 +84,54 @@ fun MainTvScreen(
                     EmptyState(
                         message = stringResourceAI("select_channel_msg"),
                         icon = Icons.Default.Tv
+                    )
+                }
+            }
+        }
+
+        // Banner de Actualización Disponible (si existe una nueva versión)
+        if (availableUpdate != null) {
+            var isUpdateBtnFocused by remember { mutableStateOf(false) }
+            val updateScale by animateFloatAsState(if (isUpdateBtnFocused) 1.03f else 1f, label = "updateScale")
+            Surface(
+                onClick = onOpenUpdateDialog,
+                shape = MaterialTheme.shapes.small,
+                color = if (isUpdateBtnFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primaryContainer,
+                contentColor = if (isUpdateBtnFocused) Color.Black else MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .onFocusChanged { isUpdateBtnFocused = it.isFocused }
+                    .scale(updateScale)
+                    .border(
+                        width = if (isUpdateBtnFocused) 2.dp else 0.dp,
+                        color = if (isUpdateBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "🚀 ¡Nueva versión disponible (v${availableUpdate.version})!",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        "ACTUALIZAR >",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }

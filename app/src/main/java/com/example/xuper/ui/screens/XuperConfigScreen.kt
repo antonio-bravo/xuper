@@ -3,14 +3,18 @@ package com.example.xuper.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.example.xuper.XuperConfigHelper
 
 @Composable
@@ -35,11 +39,18 @@ fun XuperConfigScreen() {
                 text = { Text("Servidor API Xuper") },
                 icon = { Icon(Icons.Default.Dns, contentDescription = null) }
             )
+            Tab(
+                selected = selectedTab == 2,
+                onClick = { selectedTab = 2 },
+                text = { Text("Actualización y Repo") },
+                icon = { Icon(Icons.Default.Info, contentDescription = null) }
+            )
         }
 
         when (selectedTab) {
             0 -> AceStreamConfigScreen()
             1 -> ApiConfigSection()
+            2 -> AboutAndUpdateSection()
         }
     }
 }
@@ -105,6 +116,90 @@ private fun ApiConfigSection() {
         if (showSavedMessage) {
             Spacer(modifier = Modifier.height(12.dp))
             Text("✓ Configuración guardada correctamente", color = com.example.xuper.ui.theme.Success)
+        }
+    }
+}
+
+@Composable
+private fun AboutAndUpdateSection() {
+    val context = LocalContext.current
+    val currentVersion = remember { com.example.xuper.util.UpdateManager.getCurrentVersionName(context) }
+    var isChecking by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<com.example.xuper.util.AppUpdateInfo?>(null) }
+    var checkMessage by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Xuper TV", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text("Versión instalada: v$currentVersion", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Repositorio: https://github.com/antonio-bravo/xuper", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                scope.launch {
+                    isChecking = true
+                    checkMessage = "Buscando actualizaciones en GitHub..."
+                    val update = com.example.xuper.util.UpdateManager.checkForUpdates(context)
+                    isChecking = false
+                    if (update != null) {
+                        updateInfo = update
+                        checkMessage = null
+                    } else {
+                        checkMessage = "✓ Tienes la versión más reciente instalada (v$currentVersion)"
+                    }
+                }
+            },
+            enabled = !isChecking,
+            modifier = Modifier.fillMaxWidth(0.6f)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(20.dp))
+                }
+                Text(if (isChecking) "Buscando..." else "Buscar Actualizaciones")
+            }
+        }
+
+        checkMessage?.let { msg ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(msg, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
+
+        updateInfo?.let { update ->
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(0.85f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🚀 ¡Nueva Versión Disponible (v${update.version})!", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Archivo a descargar: xuper-v${update.version}_debug.apk", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = { com.example.xuper.util.UpdateManager.downloadAndInstallApk(context, update) }) {
+                            Text("DESCARGAR E INSTALAR")
+                        }
+                        OutlinedButton(onClick = { com.example.xuper.util.UpdateManager.openInBrowser(context, update.releaseNotesUrl) }) {
+                            Text("VER EN GITHUB")
+                        }
+                    }
+                }
+            }
         }
     }
 }

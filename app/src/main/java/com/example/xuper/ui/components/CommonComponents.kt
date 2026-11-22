@@ -10,8 +10,11 @@ import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -67,6 +70,7 @@ fun UniversalPlayer(
     val context = LocalContext.current
     val activity = context as? ComponentActivity
     val aceStreamManager = remember { com.example.xuper.data.AceStreamManager(context) }
+    var isControlsVisible by remember { mutableStateOf(true) }
 
     // Mantener la pantalla encendida mientras el reproductor esté activo
     DisposableEffect(Unit) {
@@ -103,67 +107,43 @@ fun UniversalPlayer(
                 },
                 onFullScreen = onFullScreen,
                 registerBackHandler = registerBackHandler,
-                onCloseFullScreen = onCloseFullScreen
+                onCloseFullScreen = onCloseFullScreen,
+                onControllerVisibilityChanged = { visible -> isControlsVisible = visible }
             )
 
             // Overlay superior con stats, selector de proxy, botón Fullscreen y botón Cast
-            Row(
+            AnimatedVisibility(
+                visible = isControlsVisible,
+                enter = fadeIn(),
+                exit = fadeOut(),
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp)
             ) {
-                AceStreamStatsOverlay(
-                    contentId = aceId,
-                    aceStreamManager = aceStreamManager
-                )
-
-                // Botón selector de proxy durante reproducción
-                var isProxyBtnFocused by remember { mutableStateOf(false) }
-                val btnScale by animateFloatAsState(if (isProxyBtnFocused) 1.1f else 1f, label = "proxyBtnScale")
-
-                Surface(
-                    onClick = { showProxyDialog = true },
-                    shape = MaterialTheme.shapes.small,
-                    color = Color.Black.copy(alpha = 0.75f),
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .onFocusChanged { isProxyBtnFocused = it.isFocused }
-                        .scale(btnScale)
-                        .border(
-                            width = if (isProxyBtnFocused) 2.dp else 0.dp,
-                            color = if (isProxyBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                            shape = MaterialTheme.shapes.small
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(if (activeProxy.isVpn) "🔒" else "🌐", style = MaterialTheme.typography.labelSmall)
-                        Text(activeProxy.name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Proxy", modifier = Modifier.size(16.dp))
-                    }
-                }
+                    AceStreamStatsOverlay(
+                        contentId = aceId,
+                        aceStreamManager = aceStreamManager
+                    )
 
-                // Botón Pantalla Completa (si aplica)
-                onFullScreen?.let { onFS ->
-                    var isFSBtnFocused by remember { mutableStateOf(false) }
-                    val fsScale by animateFloatAsState(if (isFSBtnFocused) 1.1f else 1f, label = "fsBtnScale")
+                    // Botón selector de proxy durante reproducción
+                    var isProxyBtnFocused by remember { mutableStateOf(false) }
+                    val btnScale by animateFloatAsState(if (isProxyBtnFocused) 1.1f else 1f, label = "proxyBtnScale")
 
                     Surface(
-                        onClick = onFS,
+                        onClick = { showProxyDialog = true },
                         shape = MaterialTheme.shapes.small,
                         color = Color.Black.copy(alpha = 0.75f),
                         contentColor = Color.White,
                         modifier = Modifier
-                            .onFocusChanged { isFSBtnFocused = it.isFocused }
-                            .scale(fsScale)
+                            .onFocusChanged { isProxyBtnFocused = it.isFocused }
+                            .scale(btnScale)
                             .border(
-                                width = if (isFSBtnFocused) 2.dp else 0.dp,
-                                color = if (isFSBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                width = if (isProxyBtnFocused) 2.dp else 0.dp,
+                                color = if (isProxyBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = MaterialTheme.shapes.small
                             )
                     ) {
@@ -172,36 +152,67 @@ fun UniversalPlayer(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", modifier = Modifier.size(16.dp), tint = Color.White)
+                            Text(if (activeProxy.isVpn) "🔒" else "🌐", style = MaterialTheme.typography.labelSmall)
+                            Text(activeProxy.name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Proxy", modifier = Modifier.size(16.dp))
                         }
                     }
-                }
 
-                // Botón Chromecast / Cast
-                var isCastBtnFocused by remember { mutableStateOf(false) }
-                val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
+                    // Botón Pantalla Completa (si aplica)
+                    onFullScreen?.let { onFS ->
+                        var isFSBtnFocused by remember { mutableStateOf(false) }
+                        val fsScale by animateFloatAsState(if (isFSBtnFocused) 1.1f else 1f, label = "fsBtnScale")
 
-                Surface(
-                    onClick = { openCastStream(context, hlsUrl) },
-                    shape = MaterialTheme.shapes.small,
-                    color = Color.Black.copy(alpha = 0.75f),
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .onFocusChanged { isCastBtnFocused = it.isFocused }
-                        .scale(castScale)
-                        .border(
-                            width = if (isCastBtnFocused) 2.dp else 0.dp,
-                            color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                            shape = MaterialTheme.shapes.small
-                        )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Surface(
+                            onClick = onFS,
+                            shape = MaterialTheme.shapes.small,
+                            color = Color.Black.copy(alpha = 0.75f),
+                            contentColor = Color.White,
+                            modifier = Modifier
+                                .onFocusChanged { isFSBtnFocused = it.isFocused }
+                                .scale(fsScale)
+                                .border(
+                                    width = if (isFSBtnFocused) 2.dp else 0.dp,
+                                    color = if (isFSBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", modifier = Modifier.size(16.dp), tint = Color.White)
+                            }
+                        }
+                    }
+
+                    // Botón Chromecast / Cast
+                    var isCastBtnFocused by remember { mutableStateOf(false) }
+                    val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
+
+                    Surface(
+                        onClick = { openCastStream(context, hlsUrl) },
+                        shape = MaterialTheme.shapes.small,
+                        color = Color.Black.copy(alpha = 0.75f),
+                        contentColor = Color.White,
+                        modifier = Modifier
+                            .onFocusChanged { isCastBtnFocused = it.isFocused }
+                            .scale(castScale)
+                            .border(
+                                width = if (isCastBtnFocused) 2.dp else 0.dp,
+                                color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                shape = MaterialTheme.shapes.small
+                            )
                     ) {
-                        Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
-                        Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
+                            Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -250,32 +261,65 @@ fun UniversalPlayer(
                 modifier = Modifier.fillMaxSize(),
                 onFullScreen = onFullScreen,
                 registerBackHandler = registerBackHandler,
-                onCloseFullScreen = onCloseFullScreen
+                onCloseFullScreen = onCloseFullScreen,
+                onControllerVisibilityChanged = { visible -> isControlsVisible = visible }
             )
 
             // Botones de control para reproductores estándar
-            Row(
+            AnimatedVisibility(
+                visible = isControlsVisible,
+                enter = fadeIn(),
+                exit = fadeOut(),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp)
             ) {
-                onFullScreen?.let { onFS ->
-                    var isFSBtnFocused by remember { mutableStateOf(false) }
-                    val fsScale by animateFloatAsState(if (isFSBtnFocused) 1.1f else 1f, label = "fsBtnScale")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    onFullScreen?.let { onFS ->
+                        var isFSBtnFocused by remember { mutableStateOf(false) }
+                        val fsScale by animateFloatAsState(if (isFSBtnFocused) 1.1f else 1f, label = "fsBtnScale")
+
+                        Surface(
+                            onClick = onFS,
+                            shape = MaterialTheme.shapes.small,
+                            color = Color.Black.copy(alpha = 0.75f),
+                            contentColor = Color.White,
+                            modifier = Modifier
+                                .onFocusChanged { isFSBtnFocused = it.isFocused }
+                                .scale(fsScale)
+                                .border(
+                                    width = if (isFSBtnFocused) 2.dp else 0.dp,
+                                    color = if (isFSBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", modifier = Modifier.size(16.dp), tint = Color.White)
+                            }
+                        }
+                    }
+
+                    var isCastBtnFocused by remember { mutableStateOf(false) }
+                    val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
 
                     Surface(
-                        onClick = onFS,
+                        onClick = { openCastStream(context, url) },
                         shape = MaterialTheme.shapes.small,
                         color = Color.Black.copy(alpha = 0.75f),
                         contentColor = Color.White,
                         modifier = Modifier
-                            .onFocusChanged { isFSBtnFocused = it.isFocused }
-                            .scale(fsScale)
+                            .onFocusChanged { isCastBtnFocused = it.isFocused }
+                            .scale(castScale)
                             .border(
-                                width = if (isFSBtnFocused) 2.dp else 0.dp,
-                                color = if (isFSBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                width = if (isCastBtnFocused) 2.dp else 0.dp,
+                                color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                                 shape = MaterialTheme.shapes.small
                             )
                     ) {
@@ -284,35 +328,9 @@ fun UniversalPlayer(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", modifier = Modifier.size(16.dp), tint = Color.White)
+                            Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
+                            Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         }
-                    }
-                }
-
-                var isCastBtnFocused by remember { mutableStateOf(false) }
-                val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
-
-                Surface(
-                    onClick = { openCastStream(context, url) },
-                    shape = MaterialTheme.shapes.small,
-                    color = Color.Black.copy(alpha = 0.75f),
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .onFocusChanged { isCastBtnFocused = it.isFocused }
-                        .scale(castScale)
-                        .border(
-                            width = if (isCastBtnFocused) 2.dp else 0.dp,
-                            color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                            shape = MaterialTheme.shapes.small
-                        )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
-                        Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -427,11 +445,13 @@ fun VideoPlayer(
     onError: (() -> Unit)? = null,
     onFullScreen: (() -> Unit)? = null,
     registerBackHandler: Boolean = false,
-    onCloseFullScreen: (() -> Unit)? = null
+    onCloseFullScreen: (() -> Unit)? = null,
+    onControllerVisibilityChanged: ((Boolean) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var currentUrl by remember(url) { mutableStateOf(url) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+    var isControllerVisible by remember { mutableStateOf(true) }
 
     if (registerBackHandler) {
         BackHandler {
@@ -520,8 +540,14 @@ fun VideoPlayer(
 
         onDispose {
             exoPlayer.removeListener(listener)
-            exoPlayer.stop()
-            exoPlayer.clearMediaItems()
+            try {
+                exoPlayer.stop()
+                exoPlayer.clearMediaItems()
+                exoPlayer.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            com.example.xuper.util.ExoPlayerFactory.releasePlayer()
         }
     }
 
@@ -532,6 +558,11 @@ fun VideoPlayer(
                     player = exoPlayer
                     useController = true
                     keepScreenOn = true
+                    setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                        val visible = (visibility == android.view.View.VISIBLE)
+                        isControllerVisible = visible
+                        onControllerVisibilityChanged?.invoke(visible)
+                    })
                     if (onFullScreen != null) {
                         setFullscreenButtonClickListener { _ ->
                             onFullScreen.invoke()
@@ -547,6 +578,11 @@ fun VideoPlayer(
             update = { playerView ->
                 playerView.player = exoPlayer
                 playerViewRef = playerView
+                playerView.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                    val visible = (visibility == android.view.View.VISIBLE)
+                    isControllerVisible = visible
+                    onControllerVisibilityChanged?.invoke(visible)
+                })
                 if (onFullScreen != null) {
                     playerView.setFullscreenButtonClickListener { _ ->
                         onFullScreen.invoke()
@@ -558,8 +594,15 @@ fun VideoPlayer(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Selector de Pistas de Audio (Visible cuando hay más de una pista detectada)
-        if (audioTracks.size > 1) {
+        // Selector de Pistas de Audio (Visible cuando hay más de una pista detectada y los controles están visibles)
+        AnimatedVisibility(
+            visible = isControllerVisible && audioTracks.size > 1,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 12.dp, end = 64.dp)
+        ) {
             val selectedTrack = audioTracks.find { it.isSelected } ?: audioTracks.firstOrNull()
             var isAudioBtnFocused by remember { mutableStateOf(false) }
             val btnScale by animateFloatAsState(if (isAudioBtnFocused) 1.1f else 1f, label = "audioBtnScale")
@@ -570,8 +613,6 @@ fun VideoPlayer(
                 color = Color.Black.copy(alpha = 0.75f),
                 contentColor = Color.White,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 64.dp)
                     .onFocusChanged { isAudioBtnFocused = it.isFocused }
                     .scale(btnScale)
                     .border(

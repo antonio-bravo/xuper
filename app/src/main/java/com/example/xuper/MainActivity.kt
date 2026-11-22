@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -109,9 +110,21 @@ class XuperAppState(
     val selectedCategoryFlow = viewModel.selectedCategory
     val selectedListNameFlow = viewModel.selectedListName
 
+    var availableUpdate by mutableStateOf<com.example.xuper.util.AppUpdateInfo?>(null)
+        private set
+    var showUpdateDialog by mutableStateOf(false)
+
     init {
         if (viewModel.allChannels.value.isEmpty()) {
             viewModel.refreshChannels(m3uLists)
+        }
+        checkForUpdates()
+    }
+
+    fun checkForUpdates() {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val update = com.example.xuper.util.UpdateManager.checkForUpdates(context)
+            availableUpdate = update
         }
     }
 
@@ -287,7 +300,9 @@ fun XuperApp() {
                     filterFocusRequester = appState.filterFocusRequester,
                     onRefreshM3U = { appState.triggerRefresh() },
                     isSingleColumn = isSingleColumn,
-                    onToggleSingleColumn = { isSingleColumn = !isSingleColumn }
+                    onToggleSingleColumn = { isSingleColumn = !isSingleColumn },
+                    availableUpdate = appState.availableUpdate,
+                    onOpenUpdateDialog = { appState.showUpdateDialog = true }
                 )
             }
         }
@@ -395,7 +410,9 @@ fun XuperApp() {
                 isSingleColumn = isSingleColumn,
                 onToggleView = { isSingleColumn = !isSingleColumn },
                 searchQuery = searchQuery.orEmpty(),
-                onSearchChange = { appState.setSearchQuery(it) }
+                onSearchChange = { appState.setSearchQuery(it) },
+                availableUpdate = appState.availableUpdate,
+                onOpenUpdateDialog = { appState.showUpdateDialog = true }
             )
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 NavDisplay(
@@ -415,6 +432,20 @@ fun XuperApp() {
             }
         )
     }
+
+    if (appState.showUpdateDialog && appState.availableUpdate != null) {
+        UpdateConfirmationDialog(
+            updateInfo = appState.availableUpdate!!,
+            onDismiss = { appState.showUpdateDialog = false },
+            onConfirmInstall = {
+                com.example.xuper.util.UpdateManager.downloadAndInstallApk(context, appState.availableUpdate!!)
+                appState.showUpdateDialog = false
+            },
+            onOpenBrowser = {
+                com.example.xuper.util.UpdateManager.openInBrowser(context, appState.availableUpdate!!.releaseNotesUrl)
+            }
+        )
+    }
 }
 
 @Composable
@@ -426,6 +457,8 @@ fun TvSidePanel(
     onToggleView: () -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
+    availableUpdate: com.example.xuper.util.AppUpdateInfo? = null,
+    onOpenUpdateDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isPanelFocused by remember { mutableStateOf(false) }
@@ -515,6 +548,43 @@ fun TvSidePanel(
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp))
+
+            // 1.5. Botón de Actualización Disponible (si hay nueva versión)
+            if (availableUpdate != null) {
+                var isUpdateFocused by remember { mutableStateOf(false) }
+                val updateScale by animateFloatAsState(if (isUpdateFocused) 1.1f else 1f, label = "updateFocus")
+
+                Surface(
+                    onClick = onOpenUpdateDialog,
+                    shape = MaterialTheme.shapes.small,
+                    color = if (isUpdateFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (isUpdateFocused) Color.Black else MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp)
+                        .onFocusChanged {
+                            isUpdateFocused = it.isFocused
+                            if (it.hasFocus) isPanelFocused = true
+                        }
+                        .scale(updateScale)
+                        .border(
+                            width = if (isUpdateFocused) 2.dp else 0.dp,
+                            color = if (isUpdateFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = if (isExpanded) Arrangement.spacedBy(12.dp) else Arrangement.Center
+                    ) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = "Actualizar App", modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                        if (isExpanded) {
+                            Text("Actualizar (v${availableUpdate.version})", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+                    }
+                }
+            }
 
             // 2. Acciones: Refrescar + Cambio de Vista
             var isRefreshFocused by remember { mutableStateOf(false) }
@@ -873,4 +943,45 @@ fun FullScreenPlayer(url: String, onClose: () -> Unit) {
             onCloseFullScreen = onClose
         )
     }
+}
+
+@Composable
+fun UpdateConfirmationDialog(
+    updateInfo: com.example.xuper.util.AppUpdateInfo,
+    onDismiss: () -> Unit,
+    onConfirmInstall: () -> Unit,
+    onOpenBrowser: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text("Actualización Disponible (v${updateInfo.version})", style = MaterialTheme.typography.titleMedium)
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    "Se ha encontrado una nueva versión de Xuper publicada en GitHub.\n\n¿Deseas descargar e instalar la versión xuper-v${updateInfo.version}_debug.apk?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirmInstall) {
+                Text("DESCARGAR E INSTALAR")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenBrowser) {
+                    Text("VER EN GITHUB")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResourceAI("cancel"))
+                }
+            }
+        }
+    )
 }

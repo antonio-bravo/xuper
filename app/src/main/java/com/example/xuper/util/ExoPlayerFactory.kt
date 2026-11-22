@@ -26,8 +26,8 @@ object ExoPlayerFactory {
      * Obtener o crear ExoPlayer optimizado
      */
     fun getOrCreate(context: Context, reuseIfPossible: Boolean = true): ExoPlayer {
-        // Si el contexto cambió, liberar el player anterior
-        if (lastContext != null && lastContext != context.applicationContext) {
+        // Si no se permite reutilizar o el contexto cambió, liberar el player previo
+        if (!reuseIfPossible || (lastContext != null && lastContext != context.applicationContext)) {
             releasePlayer()
         }
 
@@ -47,7 +47,15 @@ object ExoPlayerFactory {
     /**
      * Crear ExoPlayer con configuración optimizada
      */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun createOptimizedPlayer(context: Context): ExoPlayer {
+        val defaultLang = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            context.resources.configuration.locales[0].language
+        } else {
+            @Suppress("DEPRECATION")
+            context.resources.configuration.locale.language
+        }
+
         // Track Selector optimizado para streaming
         val trackSelector = DefaultTrackSelector(context).apply {
             parameters = buildUponParameters()
@@ -57,7 +65,7 @@ object ExoPlayerFactory {
                 // Limitar resolución en móviles para ahorrar memoria
                 .setMaxVideoSize(1920, 1080)
                 // Priorizar audio en el idioma del sistema
-                .setPreferredAudioLanguage(context.resources.configuration.locales[0].language)
+                .setPreferredAudioLanguage(defaultLang)
                 .build()
         }
 
@@ -94,6 +102,7 @@ object ExoPlayerFactory {
     /**
      * Load Control optimizado para streaming en vivo
      */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun createOptimizedLoadControl(): LoadControl {
         return DefaultLoadControl.Builder()
             .setAllocator(
@@ -119,9 +128,13 @@ object ExoPlayerFactory {
      */
     fun releasePlayer() {
         cachedPlayer?.apply {
-            stop()
-            clearMediaItems()
-            release()
+            try {
+                stop()
+                clearMediaItems()
+                release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
         cachedPlayer = null
         lastContext = null
@@ -174,6 +187,7 @@ object ExoPlayerExtensions {
     /**
      * Obtener información de la pista actual
      */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     fun ExoPlayer.getCurrentTrackInfo(): String {
         val format = videoFormat ?: return "No video"
         return "${format.width}x${format.height} @ ${format.frameRate}fps"
