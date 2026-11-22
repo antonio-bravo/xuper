@@ -91,3 +91,27 @@ jobs:
         generate_release_notes: true
         draft: false
         prerelease: false
+
+    - name: Purge Old GitHub Releases (Keep Latest 10)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        KEEP_LATEST: 10
+      run: |
+        echo "Obteniendo la lista completa de todas las releases (sin límite)..."
+        TAGS=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate | jq -r ".[$KEEP_LATEST:][].tag_name // empty")
+
+        if [ -z "$TAGS" ]; then
+          echo "No hay releases antiguas para eliminar (se conservan las $KEEP_LATEST más recientes)."
+        else
+          echo "Releases antiguas encontradas a eliminar:"
+          echo "$TAGS"
+
+          for tag in $TAGS; do
+            if [ -n "$tag" ] && [ "$tag" != "null" ]; then
+              echo "Eliminando release y tag: $tag"
+              gh release delete "$tag" --cleanup-tag --yes || true
+              gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$tag" || true
+            fi
+          done
+          echo "Purga de releases completada."
+        fi
