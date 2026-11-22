@@ -97,7 +97,8 @@ fun UniversalPlayer(
                         activeProxy = nextProxy
                         aceStreamManager.setSelectedProxy(nextProxy)
                     }
-                }
+                },
+                onFullScreen = onFullScreen
             )
 
             // Overlay superior con stats, selector de proxy, botón Fullscreen y botón Cast
@@ -239,7 +240,7 @@ fun UniversalPlayer(
         WebPlayer(url = url, modifier = modifier)
     } else {
         Box(modifier = modifier.fillMaxSize()) {
-            VideoPlayer(url = url, modifier = Modifier.fillMaxSize())
+            VideoPlayer(url = url, modifier = Modifier.fillMaxSize(), onFullScreen = onFullScreen)
 
             // Botones de control para reproductores estándar
             Row(
@@ -412,7 +413,8 @@ data class AudioTrackOption(
 fun VideoPlayer(
     url: String,
     modifier: Modifier = Modifier,
-    onError: (() -> Unit)? = null
+    onError: (() -> Unit)? = null,
+    onFullScreen: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var currentUrl by remember(url) { mutableStateOf(url) }
@@ -505,10 +507,25 @@ fun VideoPlayer(
                     player = exoPlayer
                     useController = true
                     keepScreenOn = true
+                    if (onFullScreen != null) {
+                        setFullscreenButtonClickListener { _ ->
+                            onFullScreen.invoke()
+                        }
+                    }
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                }
+            },
+            update = { playerView ->
+                playerView.player = exoPlayer
+                if (onFullScreen != null) {
+                    playerView.setFullscreenButtonClickListener { _ ->
+                        onFullScreen.invoke()
+                    }
+                } else {
+                    playerView.setFullscreenButtonClickListener(null)
                 }
             },
             modifier = Modifier.fillMaxSize()
