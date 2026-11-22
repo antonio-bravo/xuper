@@ -57,7 +57,10 @@ import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
+fun ArenaScreen(
+    viewModel: ArenaViewModel = viewModel(),
+    onPlayFullScreen: ((String) -> Unit)? = null
+) {
     val events by viewModel.events.collectAsState()
     val streams by viewModel.streams.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -324,7 +327,14 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
 
     if (internalPlayerUrl != null) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            UniversalPlayer(url = internalPlayerUrl!!)
+            UniversalPlayer(
+                url = internalPlayerUrl!!,
+                modifier = Modifier.fillMaxSize(),
+                onFullScreen = {
+                    val urlToPlay = internalPlayerUrl!!
+                    onPlayFullScreen?.invoke(urlToPlay)
+                }
+            )
             IconButton(
                 onClick = { internalPlayerUrl = null },
                 modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
@@ -389,6 +399,7 @@ fun ArenaScreen(viewModel: ArenaViewModel = viewModel()) {
                             onClick = {
                                 showUrlDialog = false
                                 internalPlayerUrl = displayUrl
+                                onPlayFullScreen?.invoke(displayUrl)
                             },
                             modifier = Modifier
                                 .weight(1f)

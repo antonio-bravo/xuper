@@ -32,6 +32,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -138,9 +140,19 @@ class XuperAppState(
     }
 
     fun playChannelFullScreen(channel: Channel?) {
-        if (channel != null && !channel.url.isNullOrEmpty()) {
+        val target = channel ?: selectedChannel
+        if (target != null && !target.url.isNullOrEmpty()) {
+            selectedChannel = target
             val aceManager = com.example.xuper.data.AceStreamManager(context)
-            val formattedUrl = aceManager.getFormattedUrlForProxy(channel.url, aceManager.getSelectedProxy())
+            val formattedUrl = aceManager.getFormattedUrlForProxy(target.url, aceManager.getSelectedProxy())
+            navigator.navigate(XuperNavKey.Player(formattedUrl))
+        }
+    }
+
+    fun playUrlFullScreen(url: String) {
+        if (url.isNotEmpty()) {
+            val aceManager = com.example.xuper.data.AceStreamManager(context)
+            val formattedUrl = aceManager.getFormattedUrlForProxy(url, aceManager.getSelectedProxy())
             navigator.navigate(XuperNavKey.Player(formattedUrl))
         }
     }
@@ -202,7 +214,8 @@ class XuperAppState(
             M3UList(id = UUID.randomUUID().toString(), name = "TV Now 247", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_tvnow247.m3u"),
             M3UList(id = UUID.randomUUID().toString(), name = "Streamed", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_streamed.m3u"),
             M3UList(id = UUID.randomUUID().toString(), name = "golxu", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_golxu.m3u"),
-            M3UList(id = UUID.randomUUID().toString(), name = "AK47 Sports", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_ak47sports.m3u")
+            M3UList(id = UUID.randomUUID().toString(), name = "AK47 Sports", url = "https://raw.githubusercontent.com/antonio-bravo/m3u/refs/heads/main/lista_ak47sports.m3u"),
+            M3UList(id = UUID.randomUUID().toString(), name = "ZicoTV", url = "http://125.125.125.125:8899/zico/playlist.m3u")
         )
     }
 }
@@ -262,7 +275,7 @@ fun XuperApp() {
                     onListNameChange = { appState.setSelectedListName(it) },
                     m3uLists = appState.m3uLists,
                     onToggleFavorite = { appState.toggleFavorite(it) },
-                    onChannelSelected = { channel -> appState.playChannel(channel) },
+                    onChannelSelected = { channel -> appState.playChannelFullScreen(channel) },
                     onFullScreen = { appState.playChannelFullScreen(appState.selectedChannel) },
                     filterFocusRequester = appState.filterFocusRequester,
                     onRefreshM3U = { appState.triggerRefresh() },
@@ -279,7 +292,10 @@ fun XuperApp() {
             )
         }
         entry<XuperNavKey.Arena> { _ ->
-            ArenaScreen(viewModel = arenaViewModel)
+            ArenaScreen(
+                viewModel = arenaViewModel,
+                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) }
+            )
         }
         entry<XuperNavKey.Lists> { _ ->
             ListsManagementScreen(
@@ -295,7 +311,34 @@ fun XuperApp() {
         }
     }
 
-    if (layoutConfig.isCompact) {
+    val isPlayerActive = appState.navigator.isPlayerActive
+
+    DisposableEffect(isPlayerActive) {
+        if (isPlayerActive && context is ComponentActivity) {
+            val window = context.window
+            val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            onDispose {
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+            }
+        } else {
+            onDispose { }
+        }
+    }
+
+    if (isPlayerActive) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            NavDisplay(
+                entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
+                onBack = { appState.navigator.goBack() }
+            )
+        }
+    } else if (layoutConfig.isCompact) {
         // Modo Móvil: Navegación en la barra inferior (NavigationBar)
         Scaffold(
             bottomBar = {
@@ -806,15 +849,33 @@ fun LanguageSelectionDialog(onDismiss: () -> Unit, onLanguageSelected: (AppLangu
 @Composable
 fun FullScreenPlayer(url: String, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        UniversalPlayer(url = url)
+    var isCloseFocused by remember { mutableStateOf(false) }
+    val closeScale by animateFloatAsState(if (isCloseFocused) 1.15f else 1f, label = "closeScale")
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        UniversalPlayer(url = url, modifier = Modifier.fillMaxSize())
         IconButton(
             onClick = onClose,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
+                .onFocusChanged { isCloseFocused = it.isFocused }
+                .scale(closeScale)
+                .background(
+                    color = if (isCloseFocused) com.example.xuper.ui.theme.FocusBackground else Color.Black.copy(alpha = 0.6f),
+                    shape = MaterialTheme.shapes.small
+                )
+                .border(
+                    width = if (isCloseFocused) 2.dp else 0.dp,
+                    color = if (isCloseFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                    shape = MaterialTheme.shapes.small
+                )
         ) {
-            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = if (isCloseFocused) Color.Black else Color.White)
         }
     }
 }

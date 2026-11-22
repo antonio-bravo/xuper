@@ -1,6 +1,8 @@
 package com.example.xuper.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -138,8 +142,9 @@ fun ResponsivePlayer(
             .fillMaxWidth()
             .height(layoutConfig.playerHeight)
             .clip(RoundedCornerShape(if (layoutConfig.isCompact) 0.dp else 12.dp))
+            .clickable { onFullScreen() }
     ) {
-        UniversalPlayer(url = url)
+        UniversalPlayer(url = url, modifier = Modifier.fillMaxSize(), onFullScreen = onFullScreen)
 
         // Controls overlay
         Box(
@@ -162,18 +167,27 @@ fun ResponsivePlayer(
                     .align(Alignment.TopEnd)
                     .padding(12.dp)
             ) {
+                var isCloseFocused by remember { mutableStateOf(false) }
+                val closeScale by animateFloatAsState(if (isCloseFocused) 1.15f else 1f, label = "closeFocus")
                 IconButton(
                     onClick = onClose,
                     modifier = Modifier
+                        .onFocusChanged { isCloseFocused = it.isFocused }
+                        .scale(closeScale)
                         .background(
-                            color = Color.Black.copy(alpha = 0.5f),
+                            color = if (isCloseFocused) com.example.xuper.ui.theme.FocusBackground else Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(50)
+                        )
+                        .border(
+                            width = if (isCloseFocused) 2.dp else 0.dp,
+                            color = if (isCloseFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                             shape = RoundedCornerShape(50)
                         )
                 ) {
                     Icon(
                         Icons.Default.Close,
                         contentDescription = "Cerrar",
-                        tint = Color.White
+                        tint = if (isCloseFocused) Color.Black else Color.White
                     )
                 }
             }
@@ -184,18 +198,27 @@ fun ResponsivePlayer(
                     .align(Alignment.BottomEnd)
                     .padding(12.dp)
             ) {
+                var isFullFocused by remember { mutableStateOf(false) }
+                val fullScale by animateFloatAsState(if (isFullFocused) 1.15f else 1f, label = "fullFocus")
                 IconButton(
                     onClick = onFullScreen,
                     modifier = Modifier
+                        .onFocusChanged { isFullFocused = it.isFocused }
+                        .scale(fullScale)
                         .background(
-                            color = Color.Black.copy(alpha = 0.5f),
+                            color = if (isFullFocused) com.example.xuper.ui.theme.FocusBackground else Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(50)
+                        )
+                        .border(
+                            width = if (isFullFocused) 2.dp else 0.dp,
+                            color = if (isFullFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
                             shape = RoundedCornerShape(50)
                         )
                 ) {
                     Icon(
                         Icons.Default.Fullscreen,
                         contentDescription = "Pantalla completa",
-                        tint = Color.White
+                        tint = if (isFullFocused) Color.Black else Color.White
                     )
                 }
             }

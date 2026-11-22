@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,7 +56,11 @@ fun openCastStream(context: android.content.Context, streamUrl: String) {
 }
 
 @Composable
-fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
+fun UniversalPlayer(
+    url: String,
+    modifier: Modifier = Modifier,
+    onFullScreen: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
     val aceStreamManager = remember { com.example.xuper.data.AceStreamManager(context) }
@@ -95,7 +100,7 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
                 }
             )
 
-            // Overlay superior con stats, selector de proxy y botón Cast
+            // Overlay superior con stats, selector de proxy, botón Fullscreen y botón Cast
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -134,6 +139,35 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
                         Text(if (activeProxy.isVpn) "🔒" else "🌐", style = MaterialTheme.typography.labelSmall)
                         Text(activeProxy.name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Proxy", modifier = Modifier.size(16.dp))
+                    }
+                }
+
+                // Botón Pantalla Completa (si aplica)
+                onFullScreen?.let { onFS ->
+                    var isFSBtnFocused by remember { mutableStateOf(false) }
+                    val fsScale by animateFloatAsState(if (isFSBtnFocused) 1.1f else 1f, label = "fsBtnScale")
+
+                    Surface(
+                        onClick = onFS,
+                        shape = MaterialTheme.shapes.small,
+                        color = Color.Black.copy(alpha = 0.75f),
+                        contentColor = Color.White,
+                        modifier = Modifier
+                            .onFocusChanged { isFSBtnFocused = it.isFocused }
+                            .scale(fsScale)
+                            .border(
+                                width = if (isFSBtnFocused) 2.dp else 0.dp,
+                                color = if (isFSBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                shape = MaterialTheme.shapes.small
+                            )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", modifier = Modifier.size(16.dp), tint = Color.White)
+                        }
                     }
                 }
 
@@ -207,33 +241,67 @@ fun UniversalPlayer(url: String, modifier: Modifier = Modifier) {
         Box(modifier = modifier.fillMaxSize()) {
             VideoPlayer(url = url, modifier = Modifier.fillMaxSize())
 
-            // Botón Cast para reproductores estándar
-            var isCastBtnFocused by remember { mutableStateOf(false) }
-            val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
-
-            Surface(
-                onClick = { openCastStream(context, url) },
-                shape = MaterialTheme.shapes.small,
-                color = Color.Black.copy(alpha = 0.75f),
-                contentColor = Color.White,
+            // Botones de control para reproductores estándar
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(12.dp)
-                    .onFocusChanged { isCastBtnFocused = it.isFocused }
-                    .scale(castScale)
-                    .border(
-                        width = if (isCastBtnFocused) 2.dp else 0.dp,
-                        color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                        shape = MaterialTheme.shapes.small
-                    )
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                onFullScreen?.let { onFS ->
+                    var isFSBtnFocused by remember { mutableStateOf(false) }
+                    val fsScale by animateFloatAsState(if (isFSBtnFocused) 1.1f else 1f, label = "fsBtnScale")
+
+                    Surface(
+                        onClick = onFS,
+                        shape = MaterialTheme.shapes.small,
+                        color = Color.Black.copy(alpha = 0.75f),
+                        contentColor = Color.White,
+                        modifier = Modifier
+                            .onFocusChanged { isFSBtnFocused = it.isFocused }
+                            .scale(fsScale)
+                            .border(
+                                width = if (isFSBtnFocused) 2.dp else 0.dp,
+                                color = if (isFSBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                shape = MaterialTheme.shapes.small
+                            )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Fullscreen, contentDescription = "Pantalla completa", modifier = Modifier.size(16.dp), tint = Color.White)
+                        }
+                    }
+                }
+
+                var isCastBtnFocused by remember { mutableStateOf(false) }
+                val castScale by animateFloatAsState(if (isCastBtnFocused) 1.1f else 1f, label = "castBtnScale")
+
+                Surface(
+                    onClick = { openCastStream(context, url) },
+                    shape = MaterialTheme.shapes.small,
+                    color = Color.Black.copy(alpha = 0.75f),
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .onFocusChanged { isCastBtnFocused = it.isFocused }
+                        .scale(castScale)
+                        .border(
+                            width = if (isCastBtnFocused) 2.dp else 0.dp,
+                            color = if (isCastBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
                 ) {
-                    Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
-                    Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
+                        Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
