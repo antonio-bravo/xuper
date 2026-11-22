@@ -16,7 +16,7 @@ object M3UParser {
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) return@withContext emptyList()
             
-            val content = response.body?.string()?.trim() ?: ""
+            val content = response.body.string().trim()
             if (content.isEmpty()) return@withContext emptyList()
 
             // Detección robusta: si la URL contiene .json o el contenido parece JSON

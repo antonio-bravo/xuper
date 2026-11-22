@@ -188,7 +188,7 @@ fun ArenaScreen(
                                 onClick = {
                                     if (isAvailable) {
                                         pendingChannelName = channelName
-                                        pendingUrl = hash!!
+                                        pendingUrl = hash
                                         showChannelPicker = false
                                         showUrlDialog = true
                                     }

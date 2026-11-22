@@ -293,8 +293,8 @@ class AceStreamManager(context: Context) {
                     val request = Request.Builder().url(url).build()
                     val response = client.newCall(request).execute()
                     if (response.isSuccessful) {
-                        val body = response.body?.string()
-                        if (!body.isNullOrEmpty()) {
+                        val body = response.body.string()
+                        if (body.isNotEmpty()) {
                             val stats = parseStats(body)
                             lastStats = stats
                             if (stats.peers > 0 || stats.status == "dl" || stats.status == "prebuf") {

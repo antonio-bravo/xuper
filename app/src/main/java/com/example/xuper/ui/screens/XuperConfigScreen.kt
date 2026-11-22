@@ -22,6 +22,7 @@ fun XuperConfigScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        @Suppress("DEPRECATION")
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = MaterialTheme.colorScheme.surfaceVariant,

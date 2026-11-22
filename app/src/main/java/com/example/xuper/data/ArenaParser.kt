@@ -80,7 +80,7 @@ object ArenaParser {
                 
                 val response = client.newCall(requestBuilder.build()).execute()
                 if (response.isSuccessful) {
-                    val body = response.body?.string() ?: ""
+                    val body = response.body.string()
                     if (body.contains("<table") || body.contains("acestream://")) {
                         html = body
                         break

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -153,7 +155,7 @@ fun MainTvScreen(
                 }
                 IconButton(onClick = onToggleSingleColumn, modifier = Modifier.size(36.dp)) {
                     Icon(
-                        imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
+                        imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
                         contentDescription = "Cambiar vista",
                         modifier = Modifier.size(20.dp)
                     )
@@ -450,7 +452,7 @@ fun MainTvScreen(
                             contentColor = if (isExtFocused) Color.Black else Color.White,
                         ),
                     ) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                         Column(horizontalAlignment = Alignment.Start) {
                             Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)

@@ -18,6 +18,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -133,7 +134,7 @@ class XuperAppState(
         val arr = JSONArray().apply {
             newList.forEach {
                 put(JSONObject().apply {
-                    put("id", it.id ?: "")
+                    put("id", it.id)
                     put("name", it.name)
                     put("url", it.url)
                     put("enabled", it.enabled)
@@ -275,6 +276,7 @@ fun XuperApp() {
 
     var isSingleColumn by remember { mutableStateOf(true) }
 
+    @Suppress("UNCHECKED_CAST")
     val entryProvider = entryProvider {
         entry<XuperNavKey.Tv> { _ ->
             if (errorMessage != null && currentChannels.isEmpty()) {
@@ -395,7 +397,7 @@ fun XuperApp() {
                     .padding(innerPadding)
             ) {
                 NavDisplay(
-                    entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
+                    entries = appState.navigator.state.toEntries(@Suppress("UNCHECKED_CAST") (entryProvider as (NavKey) -> NavEntry<NavKey>)),
                     onBack = { appState.navigator.goBack() }
                 )
             }
@@ -416,7 +418,7 @@ fun XuperApp() {
             )
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 NavDisplay(
-                    entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
+                    entries = appState.navigator.state.toEntries(@Suppress("UNCHECKED_CAST") (entryProvider as (NavKey) -> NavEntry<NavKey>)),
                     onBack = { appState.navigator.goBack() }
                 )
             }
@@ -647,7 +649,7 @@ fun TvSidePanel(
                     horizontalArrangement = if (isExpanded) Arrangement.spacedBy(12.dp) else Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
+                        imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
                         contentDescription = "Cambiar vista",
                         modifier = Modifier.size(22.dp)
                     )
@@ -820,7 +822,7 @@ fun SideNavigationRail(
             onClick = onToggleView,
             icon = {
                 Icon(
-                    imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.Default.ViewList,
+                    imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
                     contentDescription = "Cambiar vista"
                 )
             },
