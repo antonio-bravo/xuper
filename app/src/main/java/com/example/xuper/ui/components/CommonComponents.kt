@@ -8,6 +8,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -59,7 +60,9 @@ fun openCastStream(context: android.content.Context, streamUrl: String) {
 fun UniversalPlayer(
     url: String,
     modifier: Modifier = Modifier,
-    onFullScreen: (() -> Unit)? = null
+    onFullScreen: (() -> Unit)? = null,
+    registerBackHandler: Boolean = false,
+    onCloseFullScreen: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
@@ -98,7 +101,9 @@ fun UniversalPlayer(
                         aceStreamManager.setSelectedProxy(nextProxy)
                     }
                 },
-                onFullScreen = onFullScreen
+                onFullScreen = onFullScreen,
+                registerBackHandler = registerBackHandler,
+                onCloseFullScreen = onCloseFullScreen
             )
 
             // Overlay superior con stats, selector de proxy, botón Fullscreen y botón Cast
@@ -240,7 +245,13 @@ fun UniversalPlayer(
         WebPlayer(url = url, modifier = modifier)
     } else {
         Box(modifier = modifier.fillMaxSize()) {
-            VideoPlayer(url = url, modifier = Modifier.fillMaxSize(), onFullScreen = onFullScreen)
+            VideoPlayer(
+                url = url,
+                modifier = Modifier.fillMaxSize(),
+                onFullScreen = onFullScreen,
+                registerBackHandler = registerBackHandler,
+                onCloseFullScreen = onCloseFullScreen
+            )
 
             // Botones de control para reproductores estándar
             Row(
@@ -414,10 +425,24 @@ fun VideoPlayer(
     url: String,
     modifier: Modifier = Modifier,
     onError: (() -> Unit)? = null,
-    onFullScreen: (() -> Unit)? = null
+    onFullScreen: (() -> Unit)? = null,
+    registerBackHandler: Boolean = false,
+    onCloseFullScreen: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var currentUrl by remember(url) { mutableStateOf(url) }
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+
+    if (registerBackHandler) {
+        BackHandler {
+            val pv = playerViewRef
+            if (pv != null && !pv.isControllerFullyVisible) {
+                pv.showController()
+            } else {
+                onCloseFullScreen?.invoke()
+            }
+        }
+    }
 
     var audioTracks by remember { mutableStateOf<List<AudioTrackOption>>(emptyList()) }
     var showAudioDialog by remember { mutableStateOf(false) }
@@ -516,10 +541,12 @@ fun VideoPlayer(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                    playerViewRef = this
                 }
             },
             update = { playerView ->
                 playerView.player = exoPlayer
+                playerViewRef = playerView
                 if (onFullScreen != null) {
                     playerView.setFullscreenButtonClickListener { _ ->
                         onFullScreen.invoke()

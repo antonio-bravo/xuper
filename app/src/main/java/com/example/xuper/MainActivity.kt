@@ -320,6 +320,17 @@ fun XuperApp() {
 
     val isPlayerActive = appState.fullScreenUrl != null
 
+    var lastBackTime by remember { mutableLongStateOf(0L) }
+    BackHandler(enabled = !isPlayerActive && appState.navigator.state.topLevelRoute == XuperNavKey.Tv) {
+        val now = System.currentTimeMillis()
+        if (now - lastBackTime < 2000) {
+            (context as? ComponentActivity)?.finish()
+        } else {
+            lastBackTime = now
+            android.widget.Toast.makeText(context, "Pulsa de nuevo para salir", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     DisposableEffect(isPlayerActive) {
         if (isPlayerActive && context is ComponentActivity) {
             val window = context.window
@@ -849,34 +860,17 @@ fun LanguageSelectionDialog(onDismiss: () -> Unit, onLanguageSelected: (AppLangu
 
 @Composable
 fun FullScreenPlayer(url: String, onClose: () -> Unit) {
-    BackHandler(onBack = onClose)
-    var isCloseFocused by remember { mutableStateOf(false) }
-    val closeScale by animateFloatAsState(if (isCloseFocused) 1.15f else 1f, label = "closeScale")
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        UniversalPlayer(url = url, modifier = Modifier.fillMaxSize())
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .onFocusChanged { isCloseFocused = it.isFocused }
-                .scale(closeScale)
-                .background(
-                    color = if (isCloseFocused) com.example.xuper.ui.theme.FocusBackground else Color.Black.copy(alpha = 0.6f),
-                    shape = MaterialTheme.shapes.small
-                )
-                .border(
-                    width = if (isCloseFocused) 2.dp else 0.dp,
-                    color = if (isCloseFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                    shape = MaterialTheme.shapes.small
-                )
-        ) {
-            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = if (isCloseFocused) Color.Black else Color.White)
-        }
+        UniversalPlayer(
+            url = url,
+            modifier = Modifier.fillMaxSize(),
+            onFullScreen = onClose,
+            registerBackHandler = true,
+            onCloseFullScreen = onClose
+        )
     }
 }
