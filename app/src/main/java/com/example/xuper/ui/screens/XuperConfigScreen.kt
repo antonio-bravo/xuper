@@ -8,11 +8,11 @@ import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.example.xuper.XuperConfigHelper
@@ -63,7 +63,7 @@ private fun ApiConfigSection() {
 
     var apiUrl by remember { mutableStateOf(settings[0]) }
     var user by remember { mutableStateOf(settings[1]) }
-    var pass by remember { mutableStateOf(settings[2]) }
+    val passwordState = rememberTextFieldState(settings[2])
     var showSavedMessage by remember { mutableStateOf(false) }
 
     Column(
@@ -94,19 +94,16 @@ private fun ApiConfigSection() {
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(
-            value = pass,
-            onValueChange = { pass = it },
+        SecureTextField(
+            state = passwordState,
             label = { Text("Contraseña") },
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true,
             modifier = Modifier.fillMaxWidth(0.85f)
         )
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = {
-                XuperConfigHelper.guardarAjustes(context, apiUrl, user, pass)
+                XuperConfigHelper.guardarAjustes(context, apiUrl, user, passwordState.text.toString())
                 showSavedMessage = true
             },
             modifier = Modifier.fillMaxWidth(0.5f)
