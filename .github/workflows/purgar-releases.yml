@@ -20,23 +20,26 @@ jobs:
       KEEP_LATEST: 10 # Conservar las 10 releases más recientes
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Eliminar releases antiguas y sus tags (sin límite)
         run: |
-          echo "Obteniendo la lista completa de todas las releases..."
-          TAGS=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate | jq -r ".[$KEEP_LATEST:][].tag_name // empty")
+          echo "Obteniendo la lista completa de todas las releases via GitHub REST API..."
+          RELEASES_TO_DELETE=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate | jq -r ".[$KEEP_LATEST:][] | \"\(.id) \(.tag_name)\"")
 
-          if [ -z "$TAGS" ]; then
+          if [ -z "$RELEASES_TO_DELETE" ]; then
             echo "No hay releases antiguas para eliminar (se conservan las $KEEP_LATEST más recientes)."
           else
-            echo "Releases antiguas encontradas a eliminar:"
-            echo "$TAGS"
-
-            for tag in $TAGS; do
-              if [ -n "$tag" ] && [ "$tag" != "null" ]; then
-                echo "Eliminando release y tag: $tag"
-                gh release delete "$tag" --cleanup-tag --yes || true
-                gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$tag" || true
+            echo "Eliminando releases y tags antiguas..."
+            echo "$RELEASES_TO_DELETE" | while read -r rel_id tag; do
+              if [ -n "$rel_id" ] && [ "$rel_id" != "null" ]; then
+                echo "Eliminando release ID $rel_id (tag: $tag)..."
+                gh api -X DELETE "repos/${{ github.repository }}/releases/$rel_id" || true
+                if [ -n "$tag" ] && [ "$tag" != "null" ]; then
+                  gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$tag" || true
+                fi
               fi
             done
-            echo "Purga de releases completada."
+            echo "Purga completada exitosamente."
           fi
