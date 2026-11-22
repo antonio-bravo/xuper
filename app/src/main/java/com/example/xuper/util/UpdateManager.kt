@@ -103,15 +103,18 @@ object UpdateManager {
         val latestParts = cleanLatest.split(".").mapNotNull { it.toLongOrNull() }
         val currentParts = cleanCurrent.split(".").mapNotNull { it.toLongOrNull() }
 
-        val length = maxOf(latestParts.size, currentParts.size)
-        for (i in 0 until length) {
-            val l = latestParts.getOrElse(i) { 0L }
-            val c = currentParts.getOrElse(i) { 0L }
-            if (l > c) return true
-            if (l < c) return false
+        if (latestParts.isNotEmpty() && currentParts.isNotEmpty()) {
+            val length = maxOf(latestParts.size, currentParts.size)
+            for (i in 0 until length) {
+                val l = latestParts.getOrElse(i) { 0L }
+                val c = currentParts.getOrElse(i) { 0L }
+                if (l > c) return true
+                if (l < c) return false
+            }
+            return false
         }
 
-        return cleanLatest != cleanCurrent
+        return false
     }
 
     fun downloadAndInstallApk(context: Context, updateInfo: AppUpdateInfo) {

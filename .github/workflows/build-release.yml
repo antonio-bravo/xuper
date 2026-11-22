@@ -57,7 +57,7 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build Release APK
-      run: ./gradlew assembleRelease assembleDebug
+      run: ./gradlew assembleRelease assembleDebug -PversionName=${{ env.VERSION }}
 
     - name: Prepare APK for Release
       run: |

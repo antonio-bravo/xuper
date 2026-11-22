@@ -463,6 +463,7 @@ fun TvSidePanel(
     onOpenUpdateDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var isPanelFocused by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
 
@@ -744,6 +745,25 @@ fun TvSidePanel(
                         }
                     }
                 }
+            }
+
+            // 5. Versión de la App al pie (justo debajo del buscador)
+            val currentAppVersion = remember { com.example.xuper.util.UpdateManager.getCurrentVersionName(context) }
+            Spacer(modifier = Modifier.height(6.dp))
+            if (isExpanded) {
+                Text(
+                    text = "v$currentAppVersion",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                )
+            } else {
+                Text(
+                    text = "v${currentAppVersion.take(4)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
             }
         }
     }
