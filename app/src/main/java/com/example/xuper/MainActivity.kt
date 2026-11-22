@@ -135,6 +135,9 @@ class XuperAppState(
         viewModel.toggleFavorite(channel)
     }
 
+    var fullScreenUrl by mutableStateOf<String?>(null)
+        private set
+
     fun playChannel(channel: Channel?) {
         selectedChannel = channel
     }
@@ -145,7 +148,7 @@ class XuperAppState(
             selectedChannel = target
             val aceManager = com.example.xuper.data.AceStreamManager(context)
             val formattedUrl = aceManager.getFormattedUrlForProxy(target.url, aceManager.getSelectedProxy())
-            navigator.navigate(XuperNavKey.Player(formattedUrl))
+            fullScreenUrl = formattedUrl
         }
     }
 
@@ -153,8 +156,12 @@ class XuperAppState(
         if (url.isNotEmpty()) {
             val aceManager = com.example.xuper.data.AceStreamManager(context)
             val formattedUrl = aceManager.getFormattedUrlForProxy(url, aceManager.getSelectedProxy())
-            navigator.navigate(XuperNavKey.Player(formattedUrl))
+            fullScreenUrl = formattedUrl
         }
+    }
+
+    fun closeFullScreen() {
+        fullScreenUrl = null
     }
 
     fun triggerRefresh() {
@@ -311,7 +318,7 @@ fun XuperApp() {
         }
     }
 
-    val isPlayerActive = appState.navigator.isPlayerActive
+    val isPlayerActive = appState.fullScreenUrl != null
 
     DisposableEffect(isPlayerActive) {
         if (isPlayerActive && context is ComponentActivity) {
@@ -327,17 +334,11 @@ fun XuperApp() {
         }
     }
 
-    if (isPlayerActive) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-        ) {
-            NavDisplay(
-                entries = appState.navigator.state.toEntries(entryProvider as (NavKey) -> NavEntry<NavKey>),
-                onBack = { appState.navigator.goBack() }
-            )
-        }
+    if (isPlayerActive && appState.fullScreenUrl != null) {
+        FullScreenPlayer(
+            url = appState.fullScreenUrl!!,
+            onClose = { appState.closeFullScreen() }
+        )
     } else if (layoutConfig.isCompact) {
         // Modo Móvil: Navegación en la barra inferior (NavigationBar)
         Scaffold(
