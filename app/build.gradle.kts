@@ -12,7 +12,7 @@ android {
     defaultConfig {
         val appVersionName = project.findProperty("versionName")?.toString() ?: "1.0"
         applicationId = "com.example.xuper"
-        minSdk = 23
+        minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = appVersionName
