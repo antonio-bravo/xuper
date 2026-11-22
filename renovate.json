@@ -13,5 +13,8 @@
       "matchUpdateTypes": ["major"],
       "automerge": true
     }
-  ]
+  ],
+  "dependencyDashboard": {
+    "autoclose": true
+  }
 }
