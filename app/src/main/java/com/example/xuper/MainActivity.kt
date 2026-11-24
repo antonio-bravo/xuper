@@ -250,7 +250,7 @@ fun rememberXuperAppState(
     val context = LocalContext.current
     val navState = rememberNavigationState(
         startRoute = XuperNavKey.Tv,
-        topLevelRoutes = setOf(XuperNavKey.Tv, XuperNavKey.Favorites, XuperNavKey.Arena, XuperNavKey.Lists, XuperNavKey.Config)
+        topLevelRoutes = setOf(XuperNavKey.Tv, XuperNavKey.Favorites, XuperNavKey.Arena, XuperNavKey.ZicoTv, XuperNavKey.Ak47Sports, XuperNavKey.Lists, XuperNavKey.Config)
     )
     val navigator = remember { Navigator(navState) }
     return remember(viewModel, navigator) {
@@ -263,6 +263,8 @@ fun XuperApp() {
     val context = LocalContext.current
     val appState = rememberXuperAppState()
     val arenaViewModel: ArenaViewModel = viewModel()
+    val zicoTvViewModel: com.example.xuper.ui.viewmodel.ZicoTvViewModel = viewModel()
+    val ak47SportsViewModel: com.example.xuper.ui.viewmodel.Ak47SportsViewModel = viewModel()
     val layoutConfig = com.example.xuper.ui.components.rememberAdaptiveLayoutConfig()
 
     val currentChannels by appState.currentChannelsFlow.collectAsState()
@@ -321,6 +323,24 @@ fun XuperApp() {
                 onPlayFullScreen = { url -> appState.playUrlFullScreen(url) }
             )
         }
+        entry<XuperNavKey.ZicoTv> { _ ->
+            LaunchedEffect(searchQuery) {
+                zicoTvViewModel.setSearchQuery(searchQuery.orEmpty())
+            }
+            ZicoTvScreen(
+                viewModel = zicoTvViewModel,
+                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) }
+            )
+        }
+        entry<XuperNavKey.Ak47Sports> { _ ->
+            LaunchedEffect(searchQuery) {
+                ak47SportsViewModel.setSearchQuery(searchQuery.orEmpty())
+            }
+            Ak47SportsScreen(
+                viewModel = ak47SportsViewModel,
+                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) }
+            )
+        }
         entry<XuperNavKey.Lists> { _ ->
             ListsManagementScreen(
                 lists = appState.m3uLists,
@@ -376,6 +396,8 @@ fun XuperApp() {
                         Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
                         Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
                         Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
+                        Triple(XuperNavKey.ZicoTv, Icons.Default.VpnKey, "ZicoTV"),
+                        Triple(XuperNavKey.Ak47Sports, Icons.Default.SportsSoccer, "AK47Sports"),
                         Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
                         Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
                     )
@@ -509,6 +531,8 @@ fun TvSidePanel(
                 Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
                 Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
                 Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
+                Triple(XuperNavKey.ZicoTv, Icons.Default.VpnKey, "ZicoTV"),
+                Triple(XuperNavKey.Ak47Sports, Icons.Default.SportsSoccer, "AK47Sports"),
                 Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
                 Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
             )
@@ -793,6 +817,8 @@ fun SideNavigationRail(
             Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
             Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
             Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
+            Triple(XuperNavKey.ZicoTv, Icons.Default.VpnKey, "ZicoTV"),
+            Triple(XuperNavKey.Ak47Sports, Icons.Default.SportsSoccer, "AK47Sports"),
             Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
             Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
         )

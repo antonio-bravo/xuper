@@ -67,16 +67,36 @@ object PlayerUtils {
 
     fun getAceId(urlOrId: String): String {
         if (urlOrId.isEmpty()) return ""
-        
-        // Expresión regular para encontrar hashes de 40 caracteres hexadecimales
-        val regex = Regex("[a-fA-F0-9]{40}")
-        
-        // Buscamos todas las ocurrencias y nos quedamos con la última
-        // Esto soluciona problemas de URLs anidadas tipo id=http://...id=HASH
-        val allMatches = regex.findAll(urlOrId)
-        val lastMatch = allMatches.lastOrNull()
-        
-        return lastMatch?.value?.lowercase()?.trim() ?: ""
+        val input = urlOrId.trim()
+
+        // 1. Si empieza por acestream://
+        if (input.startsWith("acestream://", ignoreCase = true)) {
+            val after = input.substringAfter("acestream://").substringBefore("?").substringBefore("/").trim()
+            val match = Regex("[a-fA-F0-9]{40}").find(after)
+            if (match != null) return match.value.lowercase()
+        }
+
+        // 2. Si contiene id= en una URL de AceStream/proxy
+        if (input.contains("id=", ignoreCase = true) && (input.contains("acestream", ignoreCase = true) || input.contains("/ace/", ignoreCase = true) || input.contains("127.0.0.1:6878"))) {
+            val afterId = input.substringAfter("id=").substringBefore("&").substringBefore("/").trim()
+            val match = Regex("[a-fA-F0-9]{40}").find(afterId)
+            if (match != null) return match.value.lowercase()
+        }
+
+        // 3. Si contiene /ace/ o .acelive
+        if (input.contains("/ace/", ignoreCase = true) || input.contains(".acelive", ignoreCase = true)) {
+            val match = Regex("[a-fA-F0-9]{40}").find(input)
+            if (match != null) return match.value.lowercase()
+        }
+
+        // 4. Si NO es una URL HTTP/HTTPS y es un ID crudo de 40 caracteres hexadecimales
+        if (!input.startsWith("http://", ignoreCase = true) && !input.startsWith("https://", ignoreCase = true)) {
+            val match = Regex("^[a-fA-F0-9]{40}$").find(input)
+            if (match != null) return match.value.lowercase()
+        }
+
+        // Cualquier otra URL (ej. ZicoTV, IPTV M3U8 con token=...) NO es AceStream
+        return ""
     }
 
 //    fun getAceId(urlOrId: String): String {
@@ -143,10 +163,13 @@ object PlayerUtils {
      * Verificar si una URL es de Acestream
      */
     fun isAceStreamUrl(url: String): Boolean {
-        return url.startsWith("acestream://") ||
-               getAceId(url).isNotEmpty() ||
+        if (url.contains("zicotv", ignoreCase = true) || url.contains("bp.zicotv.cc", ignoreCase = true)) {
+            return false
+        }
+        return url.startsWith("acestream://", ignoreCase = true) ||
                url.contains("127.0.0.1:6878") ||
-               url.contains("/ace/")
+               url.contains("/ace/") ||
+               getAceId(url).isNotEmpty()
     }
 
     fun openInAceStreamApp(context: Context, url: String) {

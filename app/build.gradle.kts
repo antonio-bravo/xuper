@@ -10,7 +10,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        val appVersionName = project.findProperty("versionName")?.toString() ?: "1.0"
+        val appVersionName = project.findProperty("versionName")?.toString() ?: "1.20261122.221553"
         applicationId = "com.example.xuper"
         minSdk = 24
         targetSdk = 35
@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.mediarouter)
     implementation(libs.androidx.media3.hls)
+    implementation(libs.androidx.media3.dash)
     
     // Coil (Image loading)
     implementation(libs.coil.compose)

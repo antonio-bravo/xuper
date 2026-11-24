@@ -20,7 +20,8 @@ import java.net.URL
 data class AppUpdateInfo(
     val version: String,
     val downloadUrl: String,
-    val releaseNotesUrl: String
+    val releaseNotesUrl: String,
+    val fileName: String = ""
 )
 
 object UpdateManager {
@@ -44,26 +45,44 @@ object UpdateManager {
                 val tagName = json.optString("tag_name", "").removePrefix("v").trim()
                 val htmlUrl = json.optString("html_url", "https://github.com/antonio-bravo/xuper")
 
+                val isDebugBuild = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
                 val assets = json.optJSONArray("assets")
-                var debugDownloadUrl = ""
+                var matchedDownloadUrl = ""
+                var matchedFileName = ""
 
                 if (assets != null) {
-                    for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        val assetName = asset.optString("name", "")
-                        if (assetName.contains("_debug.apk", ignoreCase = true)) {
-                            debugDownloadUrl = asset.optString("browser_download_url", "")
-                            break
+                    if (isDebugBuild) {
+                        // En builds Debug, descargar el APK de depuración (firmado con la clave Debug)
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val assetName = asset.optString("name", "")
+                            if (assetName.contains("_debug.apk", ignoreCase = true)) {
+                                matchedDownloadUrl = asset.optString("browser_download_url", "")
+                                matchedFileName = assetName
+                                break
+                            }
+                        }
+                    } else {
+                        // En builds Release, descargar el APK de producción (firmado con la clave Release)
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val assetName = asset.optString("name", "")
+                            if (assetName.endsWith(".apk", ignoreCase = true) && !assetName.contains("_debug.apk", ignoreCase = true)) {
+                                matchedDownloadUrl = asset.optString("browser_download_url", "")
+                                matchedFileName = assetName
+                                break
+                            }
                         }
                     }
 
-                    // Fallback to any .apk if _debug.apk wasn't found
-                    if (debugDownloadUrl.isEmpty()) {
+                    // Fallback si no se encontró la variante específica
+                    if (matchedDownloadUrl.isEmpty()) {
                         for (i in 0 until assets.length()) {
                             val asset = assets.getJSONObject(i)
                             val assetName = asset.optString("name", "")
                             if (assetName.endsWith(".apk", ignoreCase = true)) {
-                                debugDownloadUrl = asset.optString("browser_download_url", "")
+                                matchedDownloadUrl = asset.optString("browser_download_url", "")
+                                matchedFileName = assetName
                                 break
                             }
                         }
@@ -72,11 +91,12 @@ object UpdateManager {
 
                 val currentVersion = getCurrentVersionName(context)
 
-                if (tagName.isNotEmpty() && debugDownloadUrl.isNotEmpty() && isNewerVersion(tagName, currentVersion)) {
+                if (tagName.isNotEmpty() && matchedDownloadUrl.isNotEmpty() && isNewerVersion(tagName, currentVersion)) {
                     return@withContext AppUpdateInfo(
                         version = tagName,
-                        downloadUrl = debugDownloadUrl,
-                        releaseNotesUrl = htmlUrl
+                        downloadUrl = matchedDownloadUrl,
+                        releaseNotesUrl = htmlUrl,
+                        fileName = matchedFileName.ifEmpty { "xuper-v$tagName.apk" }
                     )
                 }
             }
@@ -96,9 +116,9 @@ object UpdateManager {
     }
 
     private fun isNewerVersion(latest: String, current: String): Boolean {
-        val cleanLatest = latest.removePrefix("v").trim()
-        val cleanCurrent = current.removePrefix("v").trim()
-        if (cleanLatest.isEmpty() || cleanLatest == cleanCurrent) return false
+        val cleanLatest = latest.removePrefix("v").removePrefix("V").trim()
+        val cleanCurrent = current.removePrefix("v").removePrefix("V").trim()
+        if (cleanLatest.isEmpty() || cleanLatest.equals(cleanCurrent, ignoreCase = true)) return false
 
         val latestParts = cleanLatest.split(".").mapNotNull { it.toLongOrNull() }
         val currentParts = cleanCurrent.split(".").mapNotNull { it.toLongOrNull() }
@@ -119,12 +139,12 @@ object UpdateManager {
 
     fun downloadAndInstallApk(context: Context, updateInfo: AppUpdateInfo) {
         val downloadUrl = updateInfo.downloadUrl
-        val fileName = "xuper-v${updateInfo.version}_debug.apk"
+        val fileName = updateInfo.fileName.ifEmpty { "xuper-v${updateInfo.version}.apk" }
 
         try {
             val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
                 setTitle("Actualización Xuper (v${updateInfo.version})")
-                setDescription("Descargando _debug.apk...")
+                setDescription("Descargando $fileName...")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
                 setMimeType("application/vnd.android.package-archive")
@@ -176,6 +196,20 @@ object UpdateManager {
 
     fun promptInstallApk(context: Context, file: File) {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!context.packageManager.canRequestPackageInstalls()) {
+                    Toast.makeText(context, "Por favor, autoriza la instalación de aplicaciones desconocidas para Xuper", Toast.LENGTH_LONG).show()
+                    val permissionIntent = Intent(
+                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:${context.packageName}")
+                    ).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(permissionIntent)
+                    return
+                }
+            }
+
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",

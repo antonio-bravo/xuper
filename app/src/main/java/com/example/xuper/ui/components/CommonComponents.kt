@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlayCircle
@@ -214,6 +215,35 @@ fun UniversalPlayer(
                             Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         }
                     }
+
+                    // Botón Cerrar (si aplica)
+                    onCloseFullScreen?.let { onCloseFS ->
+                        var isCloseBtnFocused by remember { mutableStateOf(false) }
+                        val closeScale by animateFloatAsState(if (isCloseBtnFocused) 1.1f else 1f, label = "closeBtnScale")
+
+                        Surface(
+                            onClick = onCloseFS,
+                            shape = MaterialTheme.shapes.small,
+                            color = Color.Black.copy(alpha = 0.75f),
+                            contentColor = Color.White,
+                            modifier = Modifier
+                                .onFocusChanged { isCloseBtnFocused = it.isFocused }
+                                .scale(closeScale)
+                                .border(
+                                    width = if (isCloseBtnFocused) 2.dp else 0.dp,
+                                    color = if (isCloseBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar", modifier = Modifier.size(16.dp), tint = Color.White)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -330,6 +360,34 @@ fun UniversalPlayer(
                         ) {
                             Icon(Icons.Default.Cast, contentDescription = "Chromecast / Cast", modifier = Modifier.size(16.dp), tint = Color.White)
                             Text("CAST", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    onCloseFullScreen?.let { onCloseFS ->
+                        var isCloseBtnFocused by remember { mutableStateOf(false) }
+                        val closeScale by animateFloatAsState(if (isCloseBtnFocused) 1.1f else 1f, label = "closeBtnScale")
+
+                        Surface(
+                            onClick = onCloseFS,
+                            shape = MaterialTheme.shapes.small,
+                            color = Color.Black.copy(alpha = 0.75f),
+                            contentColor = Color.White,
+                            modifier = Modifier
+                                .onFocusChanged { isCloseBtnFocused = it.isFocused }
+                                .scale(closeScale)
+                                .border(
+                                    width = if (isCloseBtnFocused) 2.dp else 0.dp,
+                                    color = if (isCloseBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = MaterialTheme.shapes.small
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar", modifier = Modifier.size(16.dp), tint = Color.White)
+                            }
                         }
                     }
                 }
@@ -456,8 +514,8 @@ fun VideoPlayer(
     if (registerBackHandler) {
         BackHandler {
             val pv = playerViewRef
-            if (pv != null && !pv.isControllerFullyVisible) {
-                pv.showController()
+            if (pv != null && pv.isControllerFullyVisible) {
+                pv.hideController()
             } else {
                 onCloseFullScreen?.invoke()
             }
@@ -468,24 +526,20 @@ fun VideoPlayer(
     var showAudioDialog by remember { mutableStateOf(false) }
 
     val mediaItem = remember(currentUrl) {
-        val builder = MediaItem.Builder().setUri(currentUrl)
-        when {
-            currentUrl.contains("manifest.m3u8") || currentUrl.contains(".m3u8") -> {
-                builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
-            }
-            currentUrl.contains("getstream") || currentUrl.contains(".ts") -> {
-                builder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T)
-            }
-        }
-        builder.build()
+        buildMediaItemSafely(currentUrl)
     }
 
     // Usar factory optimizado en lugar de crear siempre nuevo
     val exoPlayer = remember(currentUrl) {
-        com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false).apply {
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
+        try {
+            com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false).apply {
+                setMediaItem(mediaItem)
+                prepare()
+                playWhenReady = true
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("VideoPlayer", "Error iniciando ExoPlayer para $currentUrl: ${e.message}", e)
+            com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false)
         }
     }
 
@@ -494,6 +548,14 @@ fun VideoPlayer(
         val listener = object : androidx.media3.common.Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 android.util.Log.d("VideoPlayer", "State: $playbackState for $currentUrl")
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    playerViewRef?.postDelayed({
+                        playerViewRef?.hideController()
+                    }, 3000)
+                }
             }
 
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -558,6 +620,7 @@ fun VideoPlayer(
                     player = exoPlayer
                     useController = true
                     keepScreenOn = true
+                    controllerShowTimeoutMs = 3000
                     setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                         val visible = (visibility == android.view.View.VISIBLE)
                         isControllerVisible = visible
@@ -578,6 +641,7 @@ fun VideoPlayer(
             update = { playerView ->
                 playerView.player = exoPlayer
                 playerViewRef = playerView
+                playerView.controllerShowTimeoutMs = 3000
                 playerView.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                     val visible = (visibility == android.view.View.VISIBLE)
                     isControllerVisible = visible
@@ -788,4 +852,77 @@ fun ErrorState(message: String, onRetry: () -> Unit) {
         onRetry = onRetry,
         icon = Icons.Default.Error
     )
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
+private fun buildMediaItemSafely(rawUrl: String): MediaItem {
+    return try {
+        val cleanUrl = if (rawUrl.contains("|")) rawUrl.substringBefore("|").trim() else rawUrl.trim()
+        val headersPart = if (rawUrl.contains("|")) rawUrl.substringAfter("|").trim() else ""
+
+        var licenseKey: String? = null
+        if (headersPart.isNotEmpty()) {
+            val params = headersPart.split("&", ";", "|")
+            for (p in params) {
+                if (p.contains("license_key=", ignoreCase = true)) {
+                    licenseKey = p.substringAfter("license_key=").trim()
+                }
+            }
+        }
+
+        val builder = MediaItem.Builder().setUri(android.net.Uri.parse(cleanUrl))
+        val lowerUrl = cleanUrl.lowercase()
+
+        when {
+            lowerUrl.contains(".m3u8") || lowerUrl.contains("manifest.m3u8") -> {
+                builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+            }
+            lowerUrl.contains(".mpd") || lowerUrl.contains("manifest.mpd") -> {
+                builder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_MPD)
+            }
+            lowerUrl.contains(".ts") || lowerUrl.contains("getstream") -> {
+                builder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T)
+            }
+        }
+
+        // Configuración de ClearKey DRM si existe clave kid:key
+        if (!licenseKey.isNullOrEmpty() && licenseKey.contains(":")) {
+            val parts = licenseKey.split(":")
+            if (parts.size == 2) {
+                val kidHex = parts[0].trim().replace("-", "").lowercase()
+                val keyHex = parts[1].trim().replace("-", "").lowercase()
+                try {
+                    val kidB64 = hexToBase64Url(kidHex)
+                    val keyB64 = hexToBase64Url(keyHex)
+                    val drmJson = "{\"keys\":[{\"kty\":\"oct\",\"k\":\"$keyB64\",\"kid\":\"$kidB64\"}],\"type\":\"temporary\"}"
+                    val clearKeyUri = "data:application/json;base64," + android.util.Base64.encodeToString(drmJson.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+
+                    builder.setDrmConfiguration(
+                        MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.CLEARKEY_UUID)
+                            .setLicenseUri(clearKeyUri)
+                            .build()
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.w("VideoPlayer", "Error configurando ClearKey DRM: ${e.message}")
+                }
+            }
+        }
+
+        builder.build()
+    } catch (e: Exception) {
+        android.util.Log.e("VideoPlayer", "Error creando MediaItem para $rawUrl: ${e.message}")
+        val cleanUrl = if (rawUrl.contains("|")) rawUrl.substringBefore("|").trim() else rawUrl.trim()
+        MediaItem.Builder().setUri(android.net.Uri.parse(cleanUrl)).build()
+    }
+}
+
+private fun hexToBase64Url(hex: String): String {
+    val len = hex.length
+    val data = ByteArray(len / 2)
+    var i = 0
+    while (i < len) {
+        data[i / 2] = ((Character.digit(hex[i], 16) shl 4) + Character.digit(hex[i + 1], 16)).toByte()
+        i += 2
+    }
+    return android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING or android.util.Base64.URL_SAFE)
 }

@@ -37,9 +37,12 @@ fun ChannelCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isFavorite = channel.isFavorite
+    val isAceStream = remember(channel.url) {
+        com.example.xuper.util.PlayerUtils.isAceStreamUrl(channel.url)
+    }
 
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.03f else 1f,
+        targetValue = if (isFocused) 1.04f else 1f,
         animationSpec = androidx.compose.animation.core.tween(150),
         label = "cardScale"
     )
@@ -100,17 +103,32 @@ fun ChannelCard(
             }
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = channel.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.basicMarquee(
-                        iterations = Int.MAX_VALUE,
-                        repeatDelayMillis = 1200
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                repeatDelayMillis = 1200
+                            )
                     )
-                )
+                    Surface(
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = if (isAceStream) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                        contentColor = if (isAceStream) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    ) {
+                        Text(
+                            text = if (isAceStream) "⚡ AceStream" else "📺 IPTV",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
                 if (channel.category.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
                     Text(

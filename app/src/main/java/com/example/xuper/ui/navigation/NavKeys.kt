@@ -9,6 +9,8 @@ sealed interface XuperNavKey : NavKey {
     @Serializable data object Lists : XuperNavKey
     @Serializable data object Favorites : XuperNavKey
     @Serializable data object Arena : XuperNavKey
+    @Serializable data object ZicoTv : XuperNavKey
+    @Serializable data object Ak47Sports : XuperNavKey
     @Serializable data object Config : XuperNavKey
     @Serializable data class Player(val url: String) : XuperNavKey
 }
