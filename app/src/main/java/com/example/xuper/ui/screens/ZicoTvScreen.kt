@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -48,7 +49,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ZicoTvScreen(
     viewModel: ZicoTvViewModel = viewModel(),
-    onPlayFullScreen: ((String) -> Unit)? = null
+    onPlayFullScreen: ((String) -> Unit)? = null,
+    isSingleColumn: Boolean = true
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -230,7 +232,7 @@ fun ZicoTvScreen(
                 Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
             }
         } else {
-            val gridColumns = if (layoutConfig.isCompact) 1 else layoutConfig.gridColumns
+            val gridColumns = if (isSingleColumn) 1 else if (layoutConfig.isCompact) 1 else layoutConfig.gridColumns
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
@@ -468,7 +470,12 @@ fun ZicoTvChannelCard(
                         color = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                repeatDelayMillis = 1200
+                            )
                     )
                 }
 

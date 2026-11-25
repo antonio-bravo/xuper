@@ -5,6 +5,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -46,7 +47,8 @@ import com.example.xuper.ui.viewmodel.Ak47SportsViewModel
 @Composable
 fun Ak47SportsScreen(
     viewModel: Ak47SportsViewModel = viewModel(),
-    onPlayFullScreen: ((String) -> Unit)? = null
+    onPlayFullScreen: ((String) -> Unit)? = null,
+    isSingleColumn: Boolean = true
 ) {
     val context = LocalContext.current
     val layoutConfig = rememberAdaptiveLayoutConfig()
@@ -62,7 +64,8 @@ fun Ak47SportsScreen(
 
     val categories = remember(events) {
         val groups = events.map { it.group }.distinct().sorted()
-        listOf("Todos", "📅 Partidos y Eventos", "🇪🇸 Eventos España") + groups
+        val presets = listOf("Todos", "📅 Partidos y Eventos", "🇪🇸 Eventos España")
+        (presets + groups).distinct()
     }
 
     val filteredEvents = remember(events, selectedCategory, searchQuery) {
@@ -238,7 +241,7 @@ fun Ak47SportsScreen(
                 Text("No hay eventos disponibles en esta categoría", color = Color.Gray)
             }
         } else {
-            val gridColumns = if (layoutConfig.isCompact) 1 else layoutConfig.gridColumns
+            val gridColumns = if (isSingleColumn) 1 else if (layoutConfig.isCompact) 1 else layoutConfig.gridColumns
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
@@ -407,6 +410,22 @@ fun Ak47EventCard(
             Spacer(Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                if (event.broadcastingChannelsText.isNotEmpty()) {
+                    Text(
+                        text = "📺 ${event.broadcastingChannelsText}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isFocused) Color.Black else MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            repeatDelayMillis = 2000
+                        )
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = event.title,
@@ -415,11 +434,16 @@ fun Ak47EventCard(
                         color = if (isFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                repeatDelayMillis = 1200
+                            )
                     )
                 }
 
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (event.isSpanishEvent) {
@@ -459,24 +483,6 @@ fun Ak47EventCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-
-                if (event.broadcastingChannelsText.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Surface(
-                        color = if (isFocused) Color.Black.copy(alpha = 0.08f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {
-                        Text(
-                            text = "📺 Retransmiten: ${event.broadcastingChannelsText}",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isFocused) Color.Black else MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

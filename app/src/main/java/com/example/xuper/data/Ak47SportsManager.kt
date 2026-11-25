@@ -30,6 +30,7 @@ data class Ak47Stream(
 data class Ak47Event(
     val id: String,
     val title: String,
+    val channelName: String = "",
     val group: String,
     val logo: String = "",
     val isSpanishEvent: Boolean = false,
@@ -37,7 +38,7 @@ data class Ak47Event(
     val streams: List<Ak47Stream> = emptyList()
 ) {
     val broadcastingChannelsText: String
-        get() = streams.map { it.channelName }.distinct().joinToString(" / ")
+        get() = if (channelName.isNotEmpty()) channelName else streams.map { it.channelName }.filter { it.isNotEmpty() }.distinct().joinToString(" / ")
 }
 
 class Ak47SportsManager(private val context: Context) {
@@ -85,6 +86,25 @@ class Ak47SportsManager(private val context: Context) {
         fun isSpanishTeamEvent(title: String): Boolean {
             if (title.isEmpty()) return false
             return RE_SPANISH_TEAMS.containsMatchIn(title)
+        }
+
+        fun isGenericOptionLabel(name: String): Boolean {
+            if (name.isEmpty()) return true
+            val clean = name.trim().lowercase()
+            return clean.matches(Regex("""^(opci[oó]n|option|server|servidor|link|enlace|stream|hd|sd|\d+)(\s*\d+)?$"""))
+        }
+
+        fun normalizeCategoryName(rawCategory: String): String {
+            val clean = rawCategory.trim().lowercase()
+            return when {
+                clean.contains("football") || clean.contains("fútbol") || clean.contains("soccer") -> "⚽ Fútbol"
+                clean.contains("boxing") || clean.contains("boxeo") -> "🥊 Boxeo"
+                clean.contains("basket") || clean.contains("baloncesto") || clean.contains("nba") -> "🏀 Baloncesto"
+                clean.contains("motor") || clean.contains("f1") || clean.contains("motogp") -> "🏎️ Motor"
+                clean.contains("ufc") || clean.contains("mma") || clean.contains("combat") || clean.contains("lucha") -> "🥊 Combate"
+                clean.contains("tennis") || clean.contains("tenis") -> "🎾 Tenis"
+                else -> rawCategory.trim()
+            }
         }
     }
 
@@ -190,7 +210,7 @@ class Ak47SportsManager(private val context: Context) {
         val baseServer = getBaseServer()
         val endpoints = listOf("sports.txt", "categories.txt")
         val rawStreams = ConcurrentHashMap<String, MutableList<Ak47Stream>>()
-        val eventMetadata = ConcurrentHashMap<String, Pair<String, String>>() // Key -> Pair(Group, Logo)
+        val eventMetadata = ConcurrentHashMap<String, Triple<String, String, String>>() // Key -> Triple(Group, Logo, ChannelName)
         val sportsEventsKeys = ConcurrentHashMap.newKeySet<String>()
 
         coroutineScope {
@@ -239,24 +259,27 @@ class Ak47SportsManager(private val context: Context) {
                                                         val sApi = streamObj.optString("api", "").trim()
 
                                                         if (sLink.isNotEmpty()) {
-                                                            val optionLabel = if (sName.isNotEmpty()) sName else "Opción ${k + 1}"
-                                                            val streamDisplayName = "$chName ($optionLabel)"
+                                                            val isSpecificEvent = !isGenericOptionLabel(sName)
+                                                            val eventKey = if (isSpecificEvent) sName else chName
+                                                            val streamChannelName = if (isSpecificEvent) chName else catName
+                                                            val optionLabel = if (isSpecificEvent) chName else (if (sName.isNotEmpty()) sName else "Opción ${k + 1}")
+                                                            val streamDisplayName = "$streamChannelName ($optionLabel)"
+                                                            val normalizedGroup = normalizeCategoryName(catName)
                                                             val licenseKey = if (sApi.isNotEmpty() && sApi.contains(":")) sApi else null
 
                                                             val stream = Ak47Stream(
                                                                 name = streamDisplayName,
-                                                                channelName = chName,
+                                                                channelName = streamChannelName,
                                                                 url = sLink,
                                                                 logo = chLogo,
-                                                                group = "AK47Sports - $catName",
+                                                                group = normalizedGroup,
                                                                 licenseKey = licenseKey
                                                             )
 
-                                                            val eventKey = chName
-                                                            if (ep == "sports.txt") {
+                                                            if (ep == "sports.txt" || isSpecificEvent) {
                                                                 sportsEventsKeys.add(eventKey)
                                                             }
-                                                            eventMetadata.putIfAbsent(eventKey, Pair(catName, chLogo))
+                                                            eventMetadata.putIfAbsent(eventKey, Triple(normalizedGroup, chLogo, streamChannelName))
                                                             rawStreams.computeIfAbsent(eventKey) { mutableListOf() }.add(stream)
                                                         }
                                                     }
@@ -277,7 +300,7 @@ class Ak47SportsManager(private val context: Context) {
 
         val eventsList = mutableListOf<Ak47Event>()
         rawStreams.forEach { (eventTitle, streamsList) ->
-            val meta = eventMetadata[eventTitle] ?: Pair("AK47Sports", "")
+            val meta = eventMetadata[eventTitle] ?: Triple("AK47Sports", "", "")
             val isSpanish = isSpanishTeamEvent(eventTitle)
             val isFromSportsFile = sportsEventsKeys.contains(eventTitle)
             val isMatch = isFromSportsFile || RE_EVENT_SEPARATORS.containsMatchIn(eventTitle) || isSpanish || meta.first.contains("event", ignoreCase = true) || meta.first.contains("sports", ignoreCase = true)
@@ -287,6 +310,7 @@ class Ak47SportsManager(private val context: Context) {
                 Ak47Event(
                     id = eventTitle.hashCode().toString(),
                     title = eventTitle,
+                    channelName = meta.third,
                     group = meta.first,
                     logo = meta.second,
                     isSpanishEvent = isSpanish,
