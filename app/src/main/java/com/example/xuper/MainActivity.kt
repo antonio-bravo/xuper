@@ -11,6 +11,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
@@ -68,6 +71,11 @@ class MainActivity : ComponentActivity() {
                 XuperApp()
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        com.example.xuper.util.UpdateManager.checkPendingInstall(this)
     }
 
     override fun onUserLeaveHint() {
@@ -488,6 +496,7 @@ fun TvSidePanel(
     val context = LocalContext.current
     var isPanelFocused by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     val isExpanded = isPanelFocused || isSearchExpanded || searchQuery.isNotEmpty()
     val panelWidth by animateDpAsState(
@@ -507,7 +516,8 @@ fun TvSidePanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 12.dp, horizontal = 8.dp),
+                .padding(vertical = 12.dp, horizontal = 8.dp)
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = if (isExpanded) Alignment.Start else Alignment.CenterHorizontally
         ) {
@@ -684,8 +694,8 @@ fun TvSidePanel(
                 }
             }
 
-            // 3. SPACER QUE EMPUJA EL BUSCADOR AL PIE DEL PANEL IZQUIERDO
-            Spacer(modifier = Modifier.weight(1f))
+            // 3. Separador flexible
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 4. Lupa / Buscador abajo del todo
             if (isExpanded && (isSearchExpanded || searchQuery.isNotEmpty())) {
@@ -1009,9 +1019,9 @@ fun UpdateConfirmationDialog(
             }
         },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "Se ha encontrado una nueva versión de Xuper publicada en GitHub.\n\n¿Deseas descargar e instalar la versión xuper-v${updateInfo.version}_debug.apk?",
+                    "Se ha encontrado una nueva versión de Xuper publicada en GitHub.\n\n¿Deseas descargar e instalar la versión ${updateInfo.fileName}?",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

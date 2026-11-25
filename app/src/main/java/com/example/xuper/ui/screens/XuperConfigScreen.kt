@@ -186,7 +186,7 @@ private fun AboutAndUpdateSection() {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("🚀 ¡Nueva Versión Disponible (v${update.version})!", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Archivo a descargar: xuper-v${update.version}_debug.apk", style = MaterialTheme.typography.bodySmall)
+                    Text("Archivo a descargar: ${update.fileName}", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(onClick = { com.example.xuper.util.UpdateManager.downloadAndInstallApk(context, update) }) {

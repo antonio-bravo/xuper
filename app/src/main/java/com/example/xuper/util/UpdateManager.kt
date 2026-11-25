@@ -27,6 +27,9 @@ data class AppUpdateInfo(
 object UpdateManager {
     private const val GITHUB_API_URL = "https://api.github.com/repos/antonio-bravo/xuper/releases/latest"
 
+    @Volatile
+    private var pendingInstallFile: File? = null
+
     suspend fun checkForUpdates(context: Context): AppUpdateInfo? = withContext(Dispatchers.IO) {
         try {
             val url = URL(GITHUB_API_URL)
@@ -52,7 +55,6 @@ object UpdateManager {
 
                 if (assets != null) {
                     if (isDebugBuild) {
-                        // En builds Debug, descargar el APK de depuración (firmado con la clave Debug)
                         for (i in 0 until assets.length()) {
                             val asset = assets.getJSONObject(i)
                             val assetName = asset.optString("name", "")
@@ -63,7 +65,6 @@ object UpdateManager {
                             }
                         }
                     } else {
-                        // En builds Release, descargar el APK de producción (firmado con la clave Release)
                         for (i in 0 until assets.length()) {
                             val asset = assets.getJSONObject(i)
                             val assetName = asset.optString("name", "")
@@ -75,7 +76,6 @@ object UpdateManager {
                         }
                     }
 
-                    // Fallback si no se encontró la variante específica
                     if (matchedDownloadUrl.isEmpty()) {
                         for (i in 0 until assets.length()) {
                             val asset = assets.getJSONObject(i)
@@ -120,8 +120,8 @@ object UpdateManager {
         val cleanCurrent = current.removePrefix("v").removePrefix("V").trim()
         if (cleanLatest.isEmpty() || cleanLatest.equals(cleanCurrent, ignoreCase = true)) return false
 
-        val latestParts = cleanLatest.split(".").mapNotNull { it.toLongOrNull() }
-        val currentParts = cleanCurrent.split(".").mapNotNull { it.toLongOrNull() }
+        val latestParts = cleanLatest.split(".").mapNotNull { it.takeWhile { char -> char.isDigit() }.toLongOrNull() }
+        val currentParts = cleanCurrent.split(".").mapNotNull { it.takeWhile { char -> char.isDigit() }.toLongOrNull() }
 
         if (latestParts.isNotEmpty() && currentParts.isNotEmpty()) {
             val length = maxOf(latestParts.size, currentParts.size)
@@ -142,11 +142,20 @@ object UpdateManager {
         val fileName = updateInfo.fileName.ifEmpty { "xuper-v${updateInfo.version}.apk" }
 
         try {
+            val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            if (downloadDir != null && downloadDir.exists()) {
+                downloadDir.listFiles()?.forEach { file ->
+                    if (file.name.endsWith(".apk", ignoreCase = true)) {
+                        file.delete()
+                    }
+                }
+            }
+
             val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
                 setTitle("Actualización Xuper (v${updateInfo.version})")
                 setDescription("Descargando $fileName...")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
                 setMimeType("application/vnd.android.package-archive")
             }
 
@@ -158,15 +167,28 @@ object UpdateManager {
                 override fun onReceive(ctxt: Context?, intent: Intent?) {
                     val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
                     if (id == downloadId) {
-                        val downloadedFile = File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            fileName
-                        )
-                        if (downloadedFile.exists()) {
-                            promptInstallApk(context, downloadedFile)
+                        val query = DownloadManager.Query().setFilterById(downloadId)
+                        val cursor = manager.query(query)
+                        if (cursor != null && cursor.moveToFirst()) {
+                            val statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                            if (statusIdx != -1 && cursor.getInt(statusIdx) == DownloadManager.STATUS_SUCCESSFUL) {
+                                val downloadedFile = File(
+                                    context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                                    fileName
+                                )
+                                if (downloadedFile.exists()) {
+                                    promptInstallApk(context, downloadedFile)
+                                } else {
+                                    openInBrowser(context, downloadUrl)
+                                }
+                            } else {
+                                Toast.makeText(context, "Error al descargar la actualización", Toast.LENGTH_SHORT).show()
+                            }
+                            cursor.close()
                         } else {
                             openInBrowser(context, downloadUrl)
                         }
+
                         try {
                             context.applicationContext.unregisterReceiver(this)
                         } catch (_: Exception) {}
@@ -194,11 +216,21 @@ object UpdateManager {
         }
     }
 
+    fun checkPendingInstall(context: Context) {
+        val file = pendingInstallFile
+        if (file != null && file.exists()) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()) {
+                promptInstallApk(context, file)
+            }
+        }
+    }
+
     fun promptInstallApk(context: Context, file: File) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!context.packageManager.canRequestPackageInstalls()) {
-                    Toast.makeText(context, "Por favor, autoriza la instalación de aplicaciones desconocidas para Xuper", Toast.LENGTH_LONG).show()
+                    pendingInstallFile = file
+                    Toast.makeText(context, "Por favor, autoriza la instalación de fuentes desconocidas para Xuper", Toast.LENGTH_LONG).show()
                     val permissionIntent = Intent(
                         android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:${context.packageName}")
@@ -210,6 +242,7 @@ object UpdateManager {
                 }
             }
 
+            pendingInstallFile = null
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -219,6 +252,7 @@ object UpdateManager {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             context.startActivity(intent)
         } catch (e: Exception) {
