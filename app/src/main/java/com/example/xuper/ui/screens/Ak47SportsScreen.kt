@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -153,11 +154,7 @@ fun Ak47SportsScreen(
         Spacer(Modifier.height(8.dp))
 
         // Barra de Búsqueda y Filtros
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        val searchBox: @Composable (Modifier) -> Unit = { boxMod ->
             var isSearchFocused by remember { mutableStateOf(false) }
             val searchScale by animateFloatAsState(if (isSearchFocused) 1.02f else 1f, label = "searchScale")
 
@@ -175,9 +172,7 @@ fun Ak47SportsScreen(
                 },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier
-                    .widthIn(max = 320.dp)
-                    .weight(1f, fill = false)
+                modifier = boxMod
                     .onFocusChanged { isSearchFocused = it.isFocused }
                     .scale(searchScale)
                     .border(
@@ -186,11 +181,11 @@ fun Ak47SportsScreen(
                         shape = MaterialTheme.shapes.small
                     )
             )
+        }
 
-            // Categorías horizontal scroll
+        val categoryRow: @Composable (Modifier) -> Unit = { rowMod ->
             Row(
-                modifier = Modifier
-                    .weight(1f)
+                modifier = rowMod
                     .horizontalScroll(rememberScrollState())
                     .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -206,7 +201,6 @@ fun Ak47SportsScreen(
                         modifier = Modifier
                             .onFocusChanged { isFocused = it.isFocused }
                             .scale(scale)
-                            .focusable()
                             .border(
                                 width = if (isFocused) 3.dp else 0.dp,
                                 color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
@@ -223,6 +217,25 @@ fun Ak47SportsScreen(
                         )
                     }
                 }
+            }
+        }
+
+        if (layoutConfig.isCompact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                searchBox(Modifier.fillMaxWidth())
+                categoryRow(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                searchBox(Modifier.widthIn(max = 320.dp).weight(1f, fill = false))
+                categoryRow(Modifier.weight(1f))
             }
         }
 
@@ -272,7 +285,10 @@ fun Ak47SportsScreen(
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Opciones / Servidores disponibles (${event.streams.size}):", style = MaterialTheme.typography.labelMedium)
@@ -363,7 +379,6 @@ fun Ak47EventCard(
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
             .scale(scale)
-            .focusable()
             .clickable { onClick() }
             .border(
                 width = if (isFocused) 3.dp else 0.dp,

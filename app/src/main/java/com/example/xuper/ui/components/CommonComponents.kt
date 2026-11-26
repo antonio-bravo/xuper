@@ -20,14 +20,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,18 +42,23 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.launch
 
+import androidx.core.net.toUri
 import com.example.xuper.util.PlayerUtils
 
 fun openCastStream(context: android.content.Context, streamUrl: String) {
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-        setDataAndType(android.net.Uri.parse(streamUrl), "application/x-mpegurl")
+        setDataAndType(streamUrl.toUri(), "application/x-mpegurl")
         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     val chooser = android.content.Intent.createChooser(intent, "Emitir a TV / Chromecast (Google Cast & DLNA)")
@@ -64,6 +74,11 @@ fun openCastStream(context: android.content.Context, streamUrl: String) {
 fun UniversalPlayer(
     url: String,
     modifier: Modifier = Modifier,
+    channelTitle: String? = null,
+    onPreviousChannel: (() -> Unit)? = null,
+    onNextChannel: (() -> Unit)? = null,
+    onRefreshStreamUrl: (suspend () -> String?)? = null,
+    autoRefreshBeforeExpiryMs: Long? = null,
     onFullScreen: (() -> Unit)? = null,
     registerBackHandler: Boolean = false,
     onCloseFullScreen: (() -> Unit)? = null
@@ -72,6 +87,14 @@ fun UniversalPlayer(
     val activity = context as? ComponentActivity
     val aceStreamManager = remember { com.example.xuper.data.AceStreamManager(context) }
     var isControlsVisible by remember { mutableStateOf(true) }
+
+    // Auto-ocultar la barra superior tras 3.5s para dejar la imagen limpia
+    LaunchedEffect(isControlsVisible) {
+        if (isControlsVisible) {
+            kotlinx.coroutines.delay(3500)
+            isControlsVisible = false
+        }
+    }
 
     // Mantener la pantalla encendida mientras el reproductor esté activo
     DisposableEffect(Unit) {
@@ -281,6 +304,23 @@ fun UniversalPlayer(
                     onDismiss = { showProxyDialog = false }
                 )
             }
+
+            if (channelTitle != null || onPreviousChannel != null || onNextChannel != null) {
+                AnimatedVisibility(
+                    visible = isControlsVisible,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 54.dp, start = 12.dp, end = 12.dp)
+                ) {
+                    ZappingControlsBar(
+                        channelTitle = channelTitle,
+                        onPreviousChannel = onPreviousChannel,
+                        onNextChannel = onNextChannel
+                    )
+                }
+            }
         }
     } else if (url.startsWith("http") && (url.contains(".html") || url.contains("php") || (!url.contains("m3u8") && !url.contains("mp4") && !url.contains("mkv") && !url.contains("ts")))) {
         WebPlayer(url = url, modifier = modifier)
@@ -289,6 +329,8 @@ fun UniversalPlayer(
             VideoPlayer(
                 url = url,
                 modifier = Modifier.fillMaxSize(),
+                onRefreshStreamUrl = onRefreshStreamUrl,
+                autoRefreshBeforeExpiryMs = autoRefreshBeforeExpiryMs,
                 onFullScreen = onFullScreen,
                 registerBackHandler = registerBackHandler,
                 onCloseFullScreen = onCloseFullScreen,
@@ -390,6 +432,87 @@ fun UniversalPlayer(
                             }
                         }
                     }
+                }
+            }
+
+            if (channelTitle != null || onPreviousChannel != null || onNextChannel != null) {
+                AnimatedVisibility(
+                    visible = isControlsVisible,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 54.dp, start = 12.dp, end = 12.dp)
+                ) {
+                    ZappingControlsBar(
+                        channelTitle = channelTitle,
+                        onPreviousChannel = onPreviousChannel,
+                        onNextChannel = onNextChannel
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZappingControlsBar(
+    channelTitle: String?,
+    onPreviousChannel: (() -> Unit)?,
+    onNextChannel: (() -> Unit)?
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = Color.Black.copy(alpha = 0.72f),
+        contentColor = Color.White
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            onPreviousChannel?.let { prev ->
+                var isPrevFocused by remember { mutableStateOf(false) }
+                IconButton(
+                    onClick = prev,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .onFocusChanged { isPrevFocused = it.isFocused }
+                        .border(
+                            width = if (isPrevFocused) 2.dp else 0.dp,
+                            color = if (isPrevFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                ) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = "Canal anterior", tint = Color.White)
+                }
+            }
+
+            if (!channelTitle.isNullOrEmpty()) {
+                Text(
+                    text = channelTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 260.dp)
+                )
+            }
+
+            onNextChannel?.let { next ->
+                var isNextFocused by remember { mutableStateOf(false) }
+                IconButton(
+                    onClick = next,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .onFocusChanged { isNextFocused = it.isFocused }
+                        .border(
+                            width = if (isNextFocused) 2.dp else 0.dp,
+                            color = if (isNextFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                ) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "Siguiente canal", tint = Color.White)
                 }
             }
         }
@@ -501,21 +624,54 @@ fun VideoPlayer(
     url: String,
     modifier: Modifier = Modifier,
     onError: (() -> Unit)? = null,
+    onRefreshStreamUrl: (suspend () -> String?)? = null,
+    autoRefreshBeforeExpiryMs: Long? = null,
     onFullScreen: (() -> Unit)? = null,
     registerBackHandler: Boolean = false,
     onCloseFullScreen: (() -> Unit)? = null,
     onControllerVisibilityChanged: ((Boolean) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var currentUrl by remember(url) { mutableStateOf(url) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     var isControllerVisible by remember { mutableStateOf(true) }
+    var showAudioDialog by remember { mutableStateOf(false) }
+    var hasRefreshedOnError by remember(currentUrl) { mutableStateOf(false) }
+
+    // Renovación preventiva del stream (ej. ZicoTV 15 min antes de caducar el token de 3h)
+    LaunchedEffect(currentUrl, onRefreshStreamUrl, autoRefreshBeforeExpiryMs) {
+        if (onRefreshStreamUrl != null && autoRefreshBeforeExpiryMs != null && autoRefreshBeforeExpiryMs > 0L) {
+            kotlinx.coroutines.delay(autoRefreshBeforeExpiryMs)
+            try {
+                val refreshed = onRefreshStreamUrl()
+                if (!refreshed.isNullOrEmpty() && refreshed != currentUrl) {
+                    android.util.Log.d("VideoPlayer", "Token renovado preventivamente sin cortar reproducción")
+                    currentUrl = refreshed
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("VideoPlayer", "Error en renovación preventiva: ${e.message}")
+            }
+        }
+    }
+
+    // Garantizar que los controles nativos y el selector de audio se oculten tras 3.5s
+    LaunchedEffect(isControllerVisible, showAudioDialog) {
+        if (isControllerVisible && !showAudioDialog) {
+            kotlinx.coroutines.delay(3500)
+            playerViewRef?.hideController()
+            isControllerVisible = false
+            onControllerVisibilityChanged?.invoke(false)
+        }
+    }
 
     if (registerBackHandler) {
         BackHandler {
             val pv = playerViewRef
-            if (pv != null && pv.isControllerFullyVisible) {
-                pv.hideController()
+            if (isControllerVisible || (pv != null && pv.isControllerFullyVisible)) {
+                pv?.hideController()
+                isControllerVisible = false
+                onControllerVisibilityChanged?.invoke(false)
             } else {
                 onCloseFullScreen?.invoke()
             }
@@ -523,35 +679,48 @@ fun VideoPlayer(
     }
 
     var audioTracks by remember { mutableStateOf<List<AudioTrackOption>>(emptyList()) }
-    var showAudioDialog by remember { mutableStateOf(false) }
+    var isBuffering by remember(currentUrl) { mutableStateOf(true) }
+    var playerError by remember(currentUrl) { mutableStateOf<String?>(null) }
+    var retryTrigger by remember { mutableIntStateOf(0) }
+    var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
     val mediaItem = remember(currentUrl) {
         buildMediaItemSafely(currentUrl)
     }
 
-    // Usar factory optimizado en lugar de crear siempre nuevo
-    val exoPlayer = remember(currentUrl) {
+    // Reutilizar la misma instancia de ExoPlayer cuando cambie currentUrl (ej. fallback getstream)
+    val exoPlayer = remember {
+        com.example.xuper.util.ExoPlayerFactory.createPlayer(context)
+    }
+
+    LaunchedEffect(exoPlayer, mediaItem, retryTrigger) {
         try {
-            com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false).apply {
-                setMediaItem(mediaItem)
-                prepare()
-                playWhenReady = true
-            }
+            isBuffering = true
+            playerError = null
+            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
         } catch (e: Exception) {
             android.util.Log.e("VideoPlayer", "Error iniciando ExoPlayer para $currentUrl: ${e.message}", e)
-            com.example.xuper.util.ExoPlayerFactory.getOrCreate(context, reuseIfPossible = false)
+            isBuffering = false
+            playerError = e.localizedMessage ?: "Error al iniciar la reproducción"
         }
     }
 
     // Listener de estado, pistas de audio y fallback automático
     DisposableEffect(exoPlayer) {
-        val listener = object : androidx.media3.common.Player.Listener {
+        val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 android.util.Log.d("VideoPlayer", "State: $playbackState for $currentUrl")
+                isBuffering = (playbackState == Player.STATE_BUFFERING)
+                if (playbackState == Player.STATE_READY) {
+                    playerError = null
+                }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
+                    isBuffering = false
                     playerViewRef?.postDelayed({
                         playerViewRef?.hideController()
                     }, 3000)
@@ -593,7 +762,24 @@ fun VideoPlayer(
                     val fallbackUrl = currentUrl.replace("manifest.m3u8", "getstream")
                     android.util.Log.d("VideoPlayer", "Probando fallback a: $fallbackUrl")
                     currentUrl = fallbackUrl
+                } else if (onRefreshStreamUrl != null && !hasRefreshedOnError) {
+                    hasRefreshedOnError = true
+                    scope.launch {
+                        try {
+                            val refreshed = onRefreshStreamUrl()
+                            if (!refreshed.isNullOrEmpty()) {
+                                android.util.Log.d("VideoPlayer", "Token renovado tras error de reproducción")
+                                currentUrl = refreshed
+                                return@launch
+                            }
+                        } catch (_: Exception) {}
+                        isBuffering = false
+                        playerError = error.localizedMessage ?: "No se pudo reproducir el stream"
+                        onError?.invoke()
+                    }
                 } else {
+                    isBuffering = false
+                    playerError = error.localizedMessage ?: "No se pudo reproducir el stream"
                     onError?.invoke()
                 }
             }
@@ -609,7 +795,6 @@ fun VideoPlayer(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            com.example.xuper.util.ExoPlayerFactory.releasePlayer()
         }
     }
 
@@ -620,7 +805,10 @@ fun VideoPlayer(
                     player = exoPlayer
                     useController = true
                     keepScreenOn = true
-                    controllerShowTimeoutMs = 3000
+                    this.resizeMode = resizeMode
+                    controllerShowTimeoutMs = 3500
+                    controllerAutoShow = true
+                    controllerHideOnTouch = true
                     setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                         val visible = (visibility == android.view.View.VISIBLE)
                         isControllerVisible = visible
@@ -641,7 +829,8 @@ fun VideoPlayer(
             update = { playerView ->
                 playerView.player = exoPlayer
                 playerViewRef = playerView
-                playerView.controllerShowTimeoutMs = 3000
+                playerView.resizeMode = resizeMode
+                playerView.controllerShowTimeoutMs = 3500
                 playerView.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                     val visible = (visibility == android.view.View.VISIBLE)
                     isControllerVisible = visible
@@ -658,45 +847,169 @@ fun VideoPlayer(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Selector de Pistas de Audio (Visible cuando hay más de una pista detectada y los controles están visibles)
+        // Selector de Relación de Aspecto + Pistas de Audio
         AnimatedVisibility(
-            visible = isControllerVisible && audioTracks.size > 1,
+            visible = isControllerVisible,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 12.dp, end = 64.dp)
         ) {
-            val selectedTrack = audioTracks.find { it.isSelected } ?: audioTracks.firstOrNull()
-            var isAudioBtnFocused by remember { mutableStateOf(false) }
-            val btnScale by animateFloatAsState(if (isAudioBtnFocused) 1.1f else 1f, label = "audioBtnScale")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val aspectLabel = when (resizeMode) {
+                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Rellenar"
+                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Zoom"
+                    else -> "Ajustar"
+                }
+                var isAspectFocused by remember { mutableStateOf(false) }
+                val aspectScale by animateFloatAsState(if (isAspectFocused) 1.1f else 1f, label = "aspectBtnScale")
+                Surface(
+                    onClick = {
+                        resizeMode = when (resizeMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                    },
+                    shape = MaterialTheme.shapes.small,
+                    color = Color.Black.copy(alpha = 0.75f),
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .onFocusChanged { isAspectFocused = it.isFocused }
+                        .scale(aspectScale)
+                        .border(
+                            width = if (isAspectFocused) 2.dp else 0.dp,
+                            color = if (isAspectFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.AspectRatio, contentDescription = "Relación de aspecto", modifier = Modifier.size(16.dp))
+                        Text(aspectLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
 
+                if (audioTracks.size > 1) {
+                    val selectedTrack = audioTracks.find { it.isSelected } ?: audioTracks.firstOrNull()
+                    var isAudioBtnFocused by remember { mutableStateOf(false) }
+                    val btnScale by animateFloatAsState(if (isAudioBtnFocused) 1.1f else 1f, label = "audioBtnScale")
+
+                    Surface(
+                        onClick = { showAudioDialog = true },
+                        shape = MaterialTheme.shapes.small,
+                        color = Color.Black.copy(alpha = 0.75f),
+                        contentColor = Color.White,
+                        modifier = Modifier
+                            .onFocusChanged { isAudioBtnFocused = it.isFocused }
+                            .scale(btnScale)
+                            .border(
+                                width = if (isAudioBtnFocused) 2.dp else 0.dp,
+                                color = if (isAudioBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                shape = MaterialTheme.shapes.small
+                            )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Audiotrack, contentDescription = "Pista de Audio", modifier = Modifier.size(16.dp))
+                            Text(
+                                text = selectedTrack?.label ?: "Audio",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Audio", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Indicador de buffering centrado
+        if (isBuffering && playerError == null) {
             Surface(
-                onClick = { showAudioDialog = true },
-                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.align(Alignment.Center),
+                shape = MaterialTheme.shapes.medium,
                 color = Color.Black.copy(alpha = 0.75f),
-                contentColor = Color.White,
-                modifier = Modifier
-                    .onFocusChanged { isAudioBtnFocused = it.isFocused }
-                    .scale(btnScale)
-                    .border(
-                        width = if (isAudioBtnFocused) 2.dp else 0.dp,
-                        color = if (isAudioBtnFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                        shape = MaterialTheme.shapes.small
-                    )
+                contentColor = Color.White
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Audiotrack, contentDescription = "Pista de Audio", modifier = Modifier.size(16.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text("Conectando al stream...", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        // Tarjeta de error con Reintentar / Abrir Externo
+        playerError?.let { err ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Error,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(36.dp)
+                    )
                     Text(
-                        text = selectedTrack?.label ?: "Audio",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "Error de reproducción",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Cambiar Audio", modifier = Modifier.size(16.dp))
+                    Text(
+                        text = err,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = {
+                            playerError = null
+                            retryTrigger++
+                        }) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Reintentar")
+                        }
+                        OutlinedButton(onClick = {
+                            val aceId = PlayerUtils.getAceId(currentUrl)
+                            if (aceId.isNotEmpty()) {
+                                PlayerUtils.openInAceStreamApp(context, currentUrl)
+                            } else {
+                                openCastStream(context, currentUrl)
+                            }
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Externo")
+                        }
+                    }
                 }
             }
         }
@@ -870,7 +1183,7 @@ private fun buildMediaItemSafely(rawUrl: String): MediaItem {
             }
         }
 
-        val builder = MediaItem.Builder().setUri(android.net.Uri.parse(cleanUrl))
+        val builder = MediaItem.Builder().setUri(cleanUrl.toUri())
         val lowerUrl = cleanUrl.lowercase()
 
         when {
@@ -912,7 +1225,7 @@ private fun buildMediaItemSafely(rawUrl: String): MediaItem {
     } catch (e: Exception) {
         android.util.Log.e("VideoPlayer", "Error creando MediaItem para $rawUrl: ${e.message}")
         val cleanUrl = if (rawUrl.contains("|")) rawUrl.substringBefore("|").trim() else rawUrl.trim()
-        MediaItem.Builder().setUri(android.net.Uri.parse(cleanUrl)).build()
+        MediaItem.Builder().setUri(cleanUrl.toUri()).build()
     }
 }
 

@@ -201,8 +201,8 @@ private fun AceStreamStatsContent(
  */
 private fun formatSpeed(kbps: Float): String {
     return when {
-        kbps >= 1024 -> String.format("%.1f MB/s", kbps / 1024)
-        kbps >= 1 -> String.format("%.0f KB/s", kbps)
+        kbps >= 1024 -> String.format(java.util.Locale.US, "%.1f MB/s", kbps / 1024)
+        kbps >= 1 -> String.format(java.util.Locale.US, "%.0f KB/s", kbps)
         else -> "0 KB/s"
     }
 }

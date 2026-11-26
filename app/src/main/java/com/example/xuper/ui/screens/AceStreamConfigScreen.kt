@@ -41,6 +41,11 @@ fun AceStreamConfigScreen() {
     var testStatusMap by remember { mutableStateOf<Map<String, Boolean?>>(emptyMap()) }
     var testingId by remember { mutableStateOf<String?>(null) }
 
+    var subnetPrefix by remember { mutableStateOf(aceStreamManager.detectLocalSubnet()) }
+    var isScanningLan by remember { mutableStateOf(false) }
+    var scanResults by remember { mutableStateOf<List<String>>(emptyList()) }
+    var hasScanned by remember { mutableStateOf(false) }
+
     fun refreshProxies() {
         proxies = aceStreamManager.getProxies()
         activeProxy = aceStreamManager.getSelectedProxy()
@@ -187,17 +192,53 @@ fun AceStreamConfigScreen() {
                         }
 
                         // Editar
-                        IconButton(onClick = { showEditDialog = proxy }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Editar")
+                        var isEditFocused by remember { mutableStateOf(false) }
+                        IconButton(
+                            onClick = { showEditDialog = proxy },
+                            modifier = Modifier
+                                .onFocusChanged { isEditFocused = it.isFocused }
+                                .background(
+                                    color = if (isEditFocused) com.example.xuper.ui.theme.FocusBackground else Color.Transparent,
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                                .border(
+                                    width = if (isEditFocused) 2.dp else 0.dp,
+                                    color = if (isEditFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                tint = if (isEditFocused) Color.Black else MaterialTheme.colorScheme.onSurface
+                            )
                         }
 
                         // Eliminar (si no es el único)
                         if (proxies.size > 1) {
-                            IconButton(onClick = {
-                                aceStreamManager.deleteProxy(proxy.id)
-                                refreshProxies()
-                            }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                            var isDeleteFocused by remember { mutableStateOf(false) }
+                            IconButton(
+                                onClick = {
+                                    aceStreamManager.deleteProxy(proxy.id)
+                                    refreshProxies()
+                                },
+                                modifier = Modifier
+                                    .onFocusChanged { isDeleteFocused = it.isFocused }
+                                    .background(
+                                        color = if (isDeleteFocused) com.example.xuper.ui.theme.FocusBackground else Color.Transparent,
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    )
+                                    .border(
+                                        width = if (isDeleteFocused) 2.dp else 0.dp,
+                                        color = if (isDeleteFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Eliminar",
+                                    tint = if (isDeleteFocused) Color.Black else MaterialTheme.colorScheme.error
+                                )
                             }
                         }
                     }
@@ -240,6 +281,114 @@ fun AceStreamConfigScreen() {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("AÑADIR NUEVO PROXY ACESTREAM")
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Escáner de Red Local (LAN)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Escáner de Red Local (LAN)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = subnetPrefix,
+                        onValueChange = { subnetPrefix = it.trim() },
+                        label = { Text("Subred (ej: 192.168.1)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    var isScanFocused by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isScanningLan = true
+                                hasScanned = false
+                                scanResults = aceStreamManager.scanLocalNetwork(subnetPrefix.ifEmpty { "192.168.1" })
+                                isScanningLan = false
+                                hasScanned = true
+                            }
+                        },
+                        enabled = !isScanningLan,
+                        modifier = Modifier
+                            .onFocusChanged { isScanFocused = it.isFocused }
+                            .border(
+                                width = if (isScanFocused) 2.dp else 0.dp,
+                                color = if (isScanFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                shape = ButtonDefaults.shape
+                            )
+                    ) {
+                        if (isScanningLan) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Escaneando...")
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ESCANEAR")
+                        }
+                    }
+                }
+
+                if (hasScanned && scanResults.isEmpty()) {
+                    Text(
+                        "No se encontraron motores AceStream en $subnetPrefix.1-254",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                scanResults.forEach { hostPort ->
+                    val parts = hostPort.split(":")
+                    val foundHost = parts.getOrNull(0) ?: return@forEach
+                    val foundPort = parts.getOrNull(1)?.toIntOrNull() ?: 6878
+                    val alreadyExists = proxies.any { it.host == foundHost && it.port == foundPort }
+
+                    Surface(
+                        onClick = {
+                            if (!alreadyExists) {
+                                val newProxy = AceStreamProxy(
+                                    name = "LAN $foundHost",
+                                    host = foundHost,
+                                    port = foundPort
+                                )
+                                aceStreamManager.addOrUpdateProxy(newProxy)
+                                aceStreamManager.setSelectedProxy(newProxy)
+                                refreshProxies()
+                            }
+                        },
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("✓ Encontrado: $hostPort", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (alreadyExists) "Ya añadido" else "+ Añadir y activar",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.height(20.dp))

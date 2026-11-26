@@ -20,11 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,6 +73,7 @@ fun ArenaScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
     val context = LocalContext.current
+    val layoutConfig = com.example.xuper.ui.components.rememberAdaptiveLayoutConfig()
     val aceStreamManager = remember { AceStreamManager(context) }
 
     // State for URL confirmation dialog
@@ -83,6 +86,10 @@ fun ArenaScreen(
     var selectedEventForPicker by remember { mutableStateOf<ArenaEvent?>(null) }
     var channelPeers by remember { mutableStateOf<Map<String, Int?>>(emptyMap()) }
     var isLoadingPeersMap by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedSportFilter by remember { mutableStateOf("Todos") }
+    val todayDate = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()) }
 
     val firstChannelFocusRequester = remember { FocusRequester() }
     val urlInternalBtnFocusRequester = remember { FocusRequester() }
@@ -172,12 +179,6 @@ fun ArenaScreen(
                 }
             },
             text = {
-                LaunchedEffect(Unit) {
-                    delay(100)
-                    try {
-                        firstChannelFocusRequester.requestFocus()
-                    } catch (_: Exception) {}
-                }
                 Column {
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
@@ -330,233 +331,14 @@ fun ArenaScreen(
     }
 
     if (showUrlDialog) {
-        val isAcestream = remember(pendingUrl) { PlayerUtils.isAceStreamUrl(pendingUrl) }
-        val proxies = remember { aceStreamManager.getProxies() }
-        val peers = channelPeers[pendingChannelName]
-
-        AlertDialog(
-            onDismissRequest = { showUrlDialog = false },
-            title = { Text(pendingChannelName, style = MaterialTheme.typography.headlineSmall) },
-            text = {
-                Column {
-                    Text(stringResourceAI("select_player"), style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(8.dp))
-                    if (peers != null) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            shape = MaterialTheme.shapes.extraSmall
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.People,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    "$peers peers activos",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-
-                    if (isAcestream) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                                    shape = MaterialTheme.shapes.small
-                                )
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Canal Acestream P2P",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
+        com.example.xuper.ui.components.ChannelPlaybackDialog(
+            title = pendingChannelName,
+            url = pendingUrl,
+            peersCount = channelPeers[pendingChannelName],
+            onPlayInternal = { formattedUrl ->
+                onPlayFullScreen?.invoke(formattedUrl)
             },
-            containerColor = MaterialTheme.colorScheme.surface,
-            confirmButton = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (isAcestream) {
-                        Text(
-                            "Reproducción Interna (Proxy AceStream):",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-
-                        proxies.forEach { proxy ->
-                            var isProxyFocused by remember { mutableStateOf(false) }
-                            val proxyScale by animateFloatAsState(if (isProxyFocused) 1.03f else 1f, label = "proxyScale")
-
-                            Button(
-                                onClick = {
-                                    aceStreamManager.setSelectedProxy(proxy)
-                                    val formattedUrl = aceStreamManager.getFormattedUrlForProxy(pendingUrl, proxy)
-                                    showUrlDialog = false
-                                    onPlayFullScreen?.invoke(formattedUrl)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .onFocusChanged { isProxyFocused = it.isFocused }
-                                    .scale(proxyScale)
-                                    .border(
-                                        width = if (isProxyFocused) 3.dp else 0.dp,
-                                        color = if (isProxyFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                        shape = ButtonDefaults.shape
-                                    ),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isProxyFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
-                                    contentColor = if (isProxyFocused) Color.Black else Color.White
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(if (proxy.isVpn) "🔒" else "🌐")
-                                        Column(horizontalAlignment = Alignment.Start) {
-                                            Text(proxy.name, style = MaterialTheme.typography.titleMedium)
-                                            Text(
-                                                "${proxy.host}:${proxy.port}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (isProxyFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
-                                            )
-                                        }
-                                    }
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                                }
-                            }
-                        }
-                    } else {
-                        // Reproductor Interno Estándar
-                        var isIntFocused by remember { mutableStateOf(false) }
-                        val intScale by animateFloatAsState(if (isIntFocused) 1.05f else 1f, label = "intScale")
-                        Button(
-                            onClick = {
-                                showUrlDialog = false
-                                onPlayFullScreen?.invoke(pendingUrl)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { isIntFocused = it.isFocused }
-                                .scale(intScale)
-                                .border(
-                                    width = if (isIntFocused) 3.dp else 0.dp,
-                                    color = if (isIntFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                    shape = ButtonDefaults.shape
-                                ),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isIntFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
-                                contentColor = if (isIntFocused) Color.Black else Color.White
-                            )
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Column(horizontalAlignment = Alignment.Start) {
-                                Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
-                            }
-                        }
-                    }
-
-                    // Botón: Reproductor Externo
-                    var isExtFocused by remember { mutableStateOf(false) }
-                    val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
-                    Button(
-                        onClick = {
-                            val rawUrl = pendingUrl.trim()
-                            val aceId = PlayerUtils.getAceId(rawUrl)
-
-                            if (aceId.isNotEmpty()) {
-                                val currentProxy = aceStreamManager.getSelectedProxy()
-                                val streamUrl = currentProxy.getStreamUrl(aceId)
-                                PlayerUtils.openInAceStreamApp(context, streamUrl)
-                            } else {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(rawUrl.toUri(), "video/*")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                try {
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    Intent.createChooser(intent, "Open with...").apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        context.startActivity(this)
-                                    }
-                                }
-                            }
-                            showUrlDialog = false
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isExtFocused = it.isFocused }
-                            .scale(extScale)
-                            .border(
-                                width = if (isExtFocused) 3.dp else 0.dp,
-                                color = if (isExtFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = ButtonDefaults.shape
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isExtFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = if (isExtFocused) Color.Black else Color.White
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column(horizontalAlignment = Alignment.Start) {
-                            Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Abrir en app externa (AceStream)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isExtFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
-                }
-            },
-            dismissButton = {
-                var isCancelUrlFocused by remember { mutableStateOf(false) }
-                val cancelUrlScale by animateFloatAsState(if (isCancelUrlFocused) 1.1f else 1f, label = "cancelUrlScale")
-                OutlinedButton(
-                    onClick = { showUrlDialog = false },
-                    modifier = Modifier
-                        .onFocusChanged { isCancelUrlFocused = it.isFocused }
-                        .scale(cancelUrlScale)
-                        .border(
-                            width = if (isCancelUrlFocused) 3.dp else 0.dp,
-                            color = if (isCancelUrlFocused) Color.White else Color.Transparent,
-                            shape = ButtonDefaults.shape
-                        ),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isCancelUrlFocused) Color.White else Color.Transparent,
-                        contentColor = if (isCancelUrlFocused) Color.Black else MaterialTheme.colorScheme.onSurface
-                    )
-                ) {
-                    Text(stringResourceAI("cancel"))
-                }
-            }
+            onDismiss = { showUrlDialog = false }
         )
     }
 
@@ -564,11 +346,7 @@ fun ArenaScreen(
         val lastFetchTimeStr by viewModel.lastFetchTimeString.collectAsState()
         
         // Title and Source Selection
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        val titleBlock: @Composable () -> Unit = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -578,7 +356,7 @@ fun ArenaScreen(
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
-                
+
                 if (lastFetchTimeStr.isNotEmpty()) {
                     Text(
                         text = "Refrescado: $lastFetchTimeStr",
@@ -607,10 +385,11 @@ fun ArenaScreen(
                     Icon(Icons.Default.Refresh, contentDescription = "Forzar Actualización")
                 }
             }
+        }
 
+        val sourcesBlock: @Composable (Modifier) -> Unit = { rowMod ->
             Row(
-                modifier = Modifier
-                    .weight(1f, fill = false)
+                modifier = rowMod
                     .horizontalScroll(rememberScrollState())
                     .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -626,7 +405,6 @@ fun ArenaScreen(
                         modifier = Modifier
                             .onFocusChanged { isFocused = it.isFocused }
                             .scale(scale)
-                            .focusable()
                             .border(
                                 width = if (isFocused) 3.dp else 0.dp,
                                 color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
@@ -646,18 +424,145 @@ fun ArenaScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        if (layoutConfig.isCompact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                titleBlock()
+                sourcesBlock(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                titleBlock()
+                sourcesBlock(Modifier.weight(1f, fill = false))
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        // Filtros rápidos: Buscador + Solo HOY + Deporte
+        val sportFilters = remember(events) {
+            val sports = events.map { it.sport }.filter { it.isNotEmpty() }.distinct().sorted()
+            listOf("Todos", "🔴 HOY") + sports
+        }
+
+        val arenaSearchBox: @Composable (Modifier) -> Unit = { boxMod ->
+            var isSearchFocused by remember { mutableStateOf(false) }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Buscar partido, competición o equipo...", style = MaterialTheme.typography.bodySmall) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar", modifier = Modifier.size(18.dp)) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Limpiar búsqueda", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                modifier = boxMod
+                    .onFocusChanged { isSearchFocused = it.isFocused }
+                    .border(
+                        width = if (isSearchFocused) 2.dp else 0.dp,
+                        color = if (isSearchFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    )
+            )
+        }
+
+        val arenaFilterRow: @Composable (Modifier) -> Unit = { rowMod ->
+            Row(
+                modifier = rowMod
+                    .horizontalScroll(rememberScrollState())
+                    .selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                sportFilters.forEach { filter ->
+                    val isSelected = selectedSportFilter == filter
+                    var isFocused by remember { mutableStateOf(false) }
+                    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, label = "arenaFilterScale")
+
+                    Surface(
+                        selected = isSelected,
+                        onClick = { selectedSportFilter = filter },
+                        modifier = Modifier
+                            .onFocusChanged { isFocused = it.isFocused }
+                            .scale(scale)
+                            .border(
+                                width = if (isFocused) 3.dp else 0.dp,
+                                color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                                shape = MaterialTheme.shapes.small
+                            ),
+                        shape = MaterialTheme.shapes.small,
+                        color = if (isSelected) com.example.xuper.ui.theme.SelectionIndicator else if (isFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(
+                            text = filter,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        if (layoutConfig.isCompact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                arenaSearchBox(Modifier.fillMaxWidth())
+                arenaFilterRow(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                arenaSearchBox(Modifier.widthIn(max = 320.dp).weight(1f, fill = false))
+                arenaFilterRow(Modifier.weight(1f))
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        val filteredEvents = remember(events, searchQuery, selectedSportFilter, todayDate) {
+            events.filter { ev ->
+                val matchesFilter = when (selectedSportFilter) {
+                    "Todos" -> true
+                    "🔴 HOY" -> ev.date == todayDate
+                    else -> ev.sport == selectedSportFilter
+                }
+                val matchesQuery = searchQuery.isEmpty() ||
+                    ev.title.contains(searchQuery, ignoreCase = true) ||
+                    ev.competition.contains(searchQuery, ignoreCase = true) ||
+                    ev.sport.contains(searchQuery, ignoreCase = true)
+                matchesFilter && matchesQuery
+            }
+        }
 
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         } else {
-            val grouped = remember(events) { events.groupBy { it.date } }
-            
-            if (events.isEmpty()) {
+            val grouped = remember(filteredEvents) { filteredEvents.groupBy { it.date } }
+
+            if (filteredEvents.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No hay eventos disponibles en esta fuente", color = Color.Gray)
+                    Text(
+                        if (events.isEmpty()) "No hay eventos disponibles en esta fuente" else "No hay eventos que coincidan con el filtro",
+                        color = Color.Gray
+                    )
                 }
             } else {
                 val listState = rememberLazyListState()
@@ -740,7 +645,6 @@ fun ArenaEventRow(
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
             .scale(scale)
-            .focusable()
             .clickable { onRowClick(event) }
             .border(
                 width = if (isFocused) 3.dp else 0.dp,

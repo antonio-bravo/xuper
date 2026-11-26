@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Environment
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -29,6 +30,9 @@ object UpdateManager {
 
     @Volatile
     private var pendingInstallFile: File? = null
+
+    @Volatile
+    private var activeDownloadReceiver: BroadcastReceiver? = null
 
     suspend fun checkForUpdates(context: Context): AppUpdateInfo? = withContext(Dispatchers.IO) {
         try {
@@ -115,7 +119,7 @@ object UpdateManager {
         }
     }
 
-    private fun isNewerVersion(latest: String, current: String): Boolean {
+    internal fun isNewerVersion(latest: String, current: String): Boolean {
         val cleanLatest = latest.removePrefix("v").removePrefix("V").trim()
         val cleanCurrent = current.removePrefix("v").removePrefix("V").trim()
         if (cleanLatest.isEmpty() || cleanLatest.equals(cleanCurrent, ignoreCase = true)) return false
@@ -151,7 +155,7 @@ object UpdateManager {
                 }
             }
 
-            val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
+            val request = DownloadManager.Request(downloadUrl.toUri()).apply {
                 setTitle("Actualización Xuper (v${updateInfo.version})")
                 setDescription("Descargando $fileName...")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
@@ -163,38 +167,49 @@ object UpdateManager {
             val downloadId = manager.enqueue(request)
             Toast.makeText(context, "Iniciando descarga de v${updateInfo.version}...", Toast.LENGTH_LONG).show()
 
+            activeDownloadReceiver?.let { prev ->
+                try {
+                    context.applicationContext.unregisterReceiver(prev)
+                } catch (_: Exception) {}
+                activeDownloadReceiver = null
+            }
+
             val onComplete = object : BroadcastReceiver() {
                 override fun onReceive(ctxt: Context?, intent: Intent?) {
                     val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
                     if (id == downloadId) {
                         val query = DownloadManager.Query().setFilterById(downloadId)
-                        val cursor = manager.query(query)
-                        if (cursor != null && cursor.moveToFirst()) {
-                            val statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                            if (statusIdx != -1 && cursor.getInt(statusIdx) == DownloadManager.STATUS_SUCCESSFUL) {
-                                val downloadedFile = File(
-                                    context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                                    fileName
-                                )
-                                if (downloadedFile.exists()) {
-                                    promptInstallApk(context, downloadedFile)
+                        manager.query(query)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                                if (statusIdx != -1 && cursor.getInt(statusIdx) == DownloadManager.STATUS_SUCCESSFUL) {
+                                    val downloadedFile = File(
+                                        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                                        fileName
+                                    )
+                                    if (downloadedFile.exists()) {
+                                        promptInstallApk(context, downloadedFile)
+                                    } else {
+                                        openInBrowser(context, downloadUrl)
+                                    }
                                 } else {
-                                    openInBrowser(context, downloadUrl)
+                                    Toast.makeText(context, "Error al descargar la actualización", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                Toast.makeText(context, "Error al descargar la actualización", Toast.LENGTH_SHORT).show()
+                                openInBrowser(context, downloadUrl)
                             }
-                            cursor.close()
-                        } else {
-                            openInBrowser(context, downloadUrl)
-                        }
+                        } ?: openInBrowser(context, downloadUrl)
 
                         try {
                             context.applicationContext.unregisterReceiver(this)
                         } catch (_: Exception) {}
+                        if (activeDownloadReceiver === this) {
+                            activeDownloadReceiver = null
+                        }
                     }
                 }
             }
+            activeDownloadReceiver = onComplete
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.applicationContext.registerReceiver(
@@ -233,7 +248,7 @@ object UpdateManager {
                     Toast.makeText(context, "Por favor, autoriza la instalación de fuentes desconocidas para Xuper", Toast.LENGTH_LONG).show()
                     val permissionIntent = Intent(
                         android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        Uri.parse("package:${context.packageName}")
+                        "package:${context.packageName}".toUri()
                     ).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
@@ -263,7 +278,7 @@ object UpdateManager {
 
     fun openInBrowser(context: Context, url: String) {
         try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            val intent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)

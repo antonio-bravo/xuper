@@ -1,24 +1,17 @@
 package com.example.xuper.data
 
 import com.example.xuper.model.ArenaEvent
-import com.example.xuper.model.ArenaStream
 import okhttp3.FormBody
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
 object ArenaParser {
-    private val client = getUnsafeOkHttpClient()
+    private val client get() = NetworkClient.defaultClient
     private const val API_KEY = "fc8c75bd41f06b0fa1d32c8b0b76493d"
 
     val sources = listOf(
@@ -31,26 +24,6 @@ object ArenaParser {
         "https://www.arena4viewer.top/misguia2.php",
         "https://www.arena4viewer.lv/misguia2.php",
     )
-
-    private fun getUnsafeOkHttpClient(): OkHttpClient {
-        try {
-            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-            })
-
-            val sslContext = SSLContext.getInstance("SSL")
-            sslContext.init(null, trustAllCerts, SecureRandom())
-
-            return OkHttpClient.Builder()
-                .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-                .hostnameVerifier { _, _ -> true }
-                .build()
-        } catch (e: Exception) {
-            return OkHttpClient()
-        }
-    }
 
     suspend fun fetchArenaData(sourceUrl: String? = null): Pair<List<ArenaEvent>, Map<String, String>> = withContext(Dispatchers.IO) {
         var html = ""
@@ -78,12 +51,13 @@ object ArenaParser {
                 
                 headers.forEach { (name, value) -> requestBuilder.addHeader(name, value) }
                 
-                val response = client.newCall(requestBuilder.build()).execute()
-                if (response.isSuccessful) {
-                    val body = response.body.string()
-                    if (body.contains("<table") || body.contains("acestream://")) {
-                        html = body
-                        break
+                client.newCall(requestBuilder.build()).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body.string()
+                        if (body.contains("<table") || body.contains("acestream://")) {
+                            html = body
+                            break
+                        }
                     }
                 }
             } catch (e: Exception) {

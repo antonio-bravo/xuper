@@ -10,17 +10,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.xuper.model.Channel
 import com.example.xuper.ui.components.ChannelList
+import com.example.xuper.ui.components.ChannelPlaybackDialog
 import com.example.xuper.ui.components.EmptyState
 import com.example.xuper.ui.components.rememberAdaptiveLayoutConfig
+import com.example.xuper.ui.stringResourceAI
 
 @Composable
 fun FavoritesScreen(
     channels: List<Channel>,
     onToggleFavorite: (Channel) -> Unit,
-    onChannelSelected: (Channel?) -> Unit
+    onChannelSelected: (Channel?) -> Unit,
+    isSingleColumn: Boolean = true
 ) {
     val layoutConfig = rememberAdaptiveLayoutConfig()
-    var isSingleColumn by remember { mutableStateOf(true) }
+    var showPlayerDialog by remember { mutableStateOf<Channel?>(null) }
 
     Column(
         modifier = Modifier
@@ -35,7 +38,7 @@ fun FavoritesScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                "Favoritos",
+                stringResourceAI("favorites"),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -57,11 +60,28 @@ fun FavoritesScreen(
         } else {
             ChannelList(
                 channels = channels,
-                onChannelSelected = onChannelSelected,
+                onChannelSelected = { showPlayerDialog = it },
                 onToggleFavorite = onToggleFavorite,
                 isSingleColumn = isSingleColumn,
                 modifier = Modifier.weight(1f)
             )
         }
+    }
+
+    showPlayerDialog?.let { channel ->
+        ChannelPlaybackDialog(
+            title = channel.name,
+            url = channel.url,
+            subtitle = if (channel.category != "Otros") "${stringResourceAI("category")}: ${channel.category}" else null,
+            isFavorite = channel.isFavorite,
+            onToggleFavorite = {
+                onToggleFavorite(channel)
+                showPlayerDialog = null
+            },
+            onPlayInternal = { formattedUrl ->
+                onChannelSelected(channel.copy(url = formattedUrl))
+            },
+            onDismiss = { showPlayerDialog = null }
+        )
     }
 }

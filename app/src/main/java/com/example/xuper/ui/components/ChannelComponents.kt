@@ -143,11 +143,31 @@ fun ChannelCard(
                     )
                 }
             }
-            IconButton(onClick = { onToggleFavorite(channel) }) {
+            var isFavFocused by remember { mutableStateOf(false) }
+            val favScale by animateFloatAsState(if (isFavFocused) 1.2f else 1f, label = "favBtnScale")
+            IconButton(
+                onClick = { onToggleFavorite(channel) },
+                modifier = Modifier
+                    .onFocusChanged { isFavFocused = it.isFocused }
+                    .scale(favScale)
+                    .background(
+                        color = if (isFavFocused) com.example.xuper.ui.theme.FocusBackground else Color.Transparent,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    )
+                    .border(
+                        width = if (isFavFocused) 2.dp else 0.dp,
+                        color = if (isFavFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    )
+            ) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Favorito",
-                    tint = if (isFavorite) Color.Red else Color.Gray,
+                    tint = when {
+                        isFavorite -> Color.Red
+                        isFavFocused -> Color.Black
+                        else -> Color.Gray
+                    },
                     modifier = Modifier.size(24.dp),
                 )
             }

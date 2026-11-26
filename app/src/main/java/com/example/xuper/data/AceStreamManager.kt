@@ -2,16 +2,22 @@ package com.example.xuper.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.example.xuper.util.PlayerUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.Inet4Address
 import java.net.InetAddress
+import java.net.NetworkInterface
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 /**
  * Representa una instancia de Proxy de AceStream (Motor Local, Proxy Directo sin VPN, Proxy con VPN, etc.)
@@ -37,10 +43,7 @@ data class AceStreamProxy(
 class AceStreamManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("acestream_config", Context.MODE_PRIVATE)
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(3, TimeUnit.SECONDS)
-        .build()
+    private val client get() = NetworkClient.fastClient
 
     companion object {
         private const val PREF_PROXIES_JSON = "proxies_list_json"
@@ -137,7 +140,7 @@ class AceStreamManager(context: Context) {
                 put("isDefault", proxy.isDefault)
             })
         }
-        prefs.edit().putString(PREF_PROXIES_JSON, jsonArray.toString()).apply()
+        prefs.edit { putString(PREF_PROXIES_JSON, jsonArray.toString()) }
     }
 
     /**
@@ -156,7 +159,7 @@ class AceStreamManager(context: Context) {
      * Guardar el ID del proxy seleccionado
      */
     fun setSelectedProxy(proxy: AceStreamProxy) {
-        prefs.edit().putString(PREF_SELECTED_PROXY_ID, proxy.id).apply()
+        prefs.edit { putString(PREF_SELECTED_PROXY_ID, proxy.id) }
     }
 
     /**
@@ -259,8 +262,9 @@ class AceStreamManager(context: Context) {
                     .url("${proxy.baseUrl}/webui/api/service?method=get_version")
                     .build()
 
-                val response = client.newCall(request).execute()
-                response.isSuccessful
+                client.newCall(request).execute().use { response ->
+                    response.isSuccessful
+                }
             } catch (e: Exception) {
                 false
             }
@@ -291,14 +295,15 @@ class AceStreamManager(context: Context) {
             for (url in urlsToTry) {
                 try {
                     val request = Request.Builder().url(url).build()
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val body = response.body.string()
-                        if (body.isNotEmpty()) {
-                            val stats = parseStats(body)
-                            lastStats = stats
-                            if (stats.peers > 0 || stats.status == "dl" || stats.status == "prebuf") {
-                                return@withContext stats
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body.string()
+                            if (body.isNotEmpty()) {
+                                val stats = parseStats(body)
+                                lastStats = stats
+                                if (stats.peers > 0 || stats.status == "dl" || stats.status == "prebuf") {
+                                    return@withContext stats
+                                }
                             }
                         }
                     }
@@ -355,25 +360,49 @@ class AceStreamManager(context: Context) {
         }
     }
 
-    suspend fun scanLocalNetwork(baseIp: String = "192.168.1"): List<String> {
-        return withContext(Dispatchers.IO) {
-            val foundHosts = mutableListOf<String>()
-            val commonPorts = listOf(6878, 6879, 6877, 8765)
-
-            for (i in 1..254) {
-                val host = "$baseIp.$i"
-                for (port in commonPorts) {
-                    try {
-                        val proxy = AceStreamProxy("scan", "Scan", host, port)
-                        if (isProxyAvailable(proxy)) {
-                            foundHosts.add("$host:$port")
+    fun detectLocalSubnet(): String {
+        return try {
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return "192.168.1"
+            for (intf in interfaces) {
+                if (!intf.isUp || intf.isLoopback) continue
+                for (addr in intf.inetAddresses) {
+                    if (addr is Inet4Address && !addr.isLoopbackAddress && addr.isSiteLocalAddress) {
+                        val ip = addr.hostAddress ?: continue
+                        val parts = ip.split(".")
+                        if (parts.size == 4) {
+                            return "${parts[0]}.${parts[1]}.${parts[2]}"
                         }
-                    } catch (_: Exception) {
                     }
                 }
             }
+            "192.168.1"
+        } catch (_: Exception) {
+            "192.168.1"
+        }
+    }
 
-            foundHosts
+    suspend fun scanLocalNetwork(baseIp: String = detectLocalSubnet()): List<String> {
+        return withContext(Dispatchers.IO) {
+            val commonPorts = listOf(6878, 6879, 6877, 8765)
+            val semaphore = Semaphore(32)
+            coroutineScope {
+                val jobs = (1..254).flatMap { i ->
+                    val host = "$baseIp.$i"
+                    commonPorts.map { port ->
+                        async {
+                            semaphore.withPermit {
+                                try {
+                                    val proxy = AceStreamProxy("scan", "Scan", host, port)
+                                    if (isProxyAvailable(proxy)) "$host:$port" else null
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            }
+                        }
+                    }
+                }
+                jobs.awaitAll().filterNotNull().distinct()
+            }
         }
     }
 

@@ -30,8 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,6 +67,8 @@ import org.json.JSONObject
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
+    internal var isPlaybackActiveForPip: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -80,7 +87,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isPlaybackActiveForPip && !isInPictureInPictureMode) {
             try {
                 val params = PictureInPictureParams.Builder()
                     .setAspectRatio(Rational(16, 9))
@@ -112,6 +119,7 @@ class XuperAppState(
     val filterFocusRequester = FocusRequester()
 
     val currentChannelsFlow = viewModel.filteredChannels
+    val availableCategoriesFlow = viewModel.availableCategories
     val isLoadingFlow = viewModel.isLoading
     val errorMessageFlow = viewModel.errorMessage
     val favoriteChannelsFlow = viewModel.favoriteChannels
@@ -127,14 +135,11 @@ class XuperAppState(
         if (viewModel.allChannels.value.isEmpty()) {
             viewModel.refreshChannels(m3uLists)
         }
-        checkForUpdates()
     }
 
-    fun checkForUpdates() {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-            val update = com.example.xuper.util.UpdateManager.checkForUpdates(context)
-            availableUpdate = update
-        }
+    suspend fun checkForUpdates() {
+        val update = com.example.xuper.util.UpdateManager.checkForUpdates(context)
+        availableUpdate = update
     }
 
     fun saveLists(newList: List<M3UList>) {
@@ -160,30 +165,63 @@ class XuperAppState(
     var fullScreenUrl by mutableStateOf<String?>(null)
         private set
 
+    var activeChannelList by mutableStateOf<List<Channel>>(emptyList())
+        private set
+
+    var activeZicoTokenInfo by mutableStateOf<com.example.xuper.data.ZicoTvTokenInfo?>(null)
+        private set
+
     fun playChannel(channel: Channel?) {
         selectedChannel = channel
     }
 
-    fun playChannelFullScreen(channel: Channel?) {
+    fun playChannelFullScreen(channel: Channel?, channelList: List<Channel> = emptyList()) {
         val target = channel ?: selectedChannel
-        if (target != null && !target.url.isNullOrEmpty()) {
+        if (target != null && target.url.isNotEmpty()) {
+            activeZicoTokenInfo = null
             selectedChannel = target
+            if (channelList.isNotEmpty()) {
+                activeChannelList = channelList
+            }
             val aceManager = com.example.xuper.data.AceStreamManager(context)
             val formattedUrl = aceManager.getFormattedUrlForProxy(target.url, aceManager.getSelectedProxy())
             fullScreenUrl = formattedUrl
         }
     }
 
+    fun playZicoChannelFullScreen(tokenInfo: com.example.xuper.data.ZicoTvTokenInfo) {
+        activeChannelList = emptyList()
+        selectedChannel = null
+        activeZicoTokenInfo = tokenInfo
+        fullScreenUrl = tokenInfo.streamUrl
+    }
+
     fun playUrlFullScreen(url: String) {
         if (url.isNotEmpty()) {
+            activeZicoTokenInfo = null
+            activeChannelList = emptyList()
             val aceManager = com.example.xuper.data.AceStreamManager(context)
             val formattedUrl = aceManager.getFormattedUrlForProxy(url, aceManager.getSelectedProxy())
             fullScreenUrl = formattedUrl
         }
     }
 
+    fun playAdjacentChannel(step: Int) {
+        val list = activeChannelList
+        val current = selectedChannel
+        if (list.size <= 1 || current == null) return
+        val currentIndex = list.indexOfFirst { it.url == current.url && it.name == current.name }
+            .let { if (it >= 0) it else list.indexOfFirst { c -> c.name == current.name } }
+        val baseIndex = if (currentIndex >= 0) currentIndex else 0
+        val nextIndex = ((baseIndex + step) % list.size + list.size) % list.size
+        playChannelFullScreen(list[nextIndex], list)
+    }
+
     fun closeFullScreen() {
         fullScreenUrl = null
+        selectedChannel = null
+        activeChannelList = emptyList()
+        activeZicoTokenInfo = null
     }
 
     fun triggerRefresh() {
@@ -266,6 +304,7 @@ fun rememberXuperAppState(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun XuperApp() {
     val context = LocalContext.current
@@ -276,6 +315,7 @@ fun XuperApp() {
     val layoutConfig = com.example.xuper.ui.components.rememberAdaptiveLayoutConfig()
 
     val currentChannels by appState.currentChannelsFlow.collectAsState()
+    val availableCategories by appState.availableCategoriesFlow.collectAsState()
     val isLoading by appState.isLoadingFlow.collectAsState()
     val errorMessage by appState.errorMessageFlow.collectAsState()
     val favoriteChannels by appState.favoriteChannelsFlow.collectAsState()
@@ -283,6 +323,10 @@ fun XuperApp() {
     val searchQuery by appState.searchQueryFlow.collectAsState()
     val selectedCategory by appState.selectedCategoryFlow.collectAsState()
     val selectedListName by appState.selectedListNameFlow.collectAsState()
+
+    LaunchedEffect(Unit) {
+        appState.checkForUpdates()
+    }
 
     var isSingleColumn by remember { mutableStateOf(true) }
 
@@ -297,6 +341,7 @@ fun XuperApp() {
             } else {
                 MainTvScreen(
                     channels = currentChannels,
+                    availableCategories = availableCategories,
                     selectedChannel = appState.selectedChannel,
                     isLoading = isLoading,
                     searchQuery = searchQuery.orEmpty(),
@@ -307,7 +352,7 @@ fun XuperApp() {
                     onListNameChange = { appState.setSelectedListName(it) },
                     m3uLists = appState.m3uLists,
                     onToggleFavorite = { appState.toggleFavorite(it) },
-                    onChannelSelected = { channel -> appState.playChannelFullScreen(channel) },
+                    onChannelSelected = { channel -> appState.playChannelFullScreen(channel, currentChannels) },
                     onFullScreen = { appState.playChannelFullScreen(appState.selectedChannel) },
                     filterFocusRequester = appState.filterFocusRequester,
                     onRefreshM3U = { appState.triggerRefresh() },
@@ -322,7 +367,8 @@ fun XuperApp() {
             FavoritesScreen(
                 channels = favoriteChannels,
                 onToggleFavorite = { appState.toggleFavorite(it) },
-                onChannelSelected = { channel -> appState.playChannelFullScreen(channel) }
+                onChannelSelected = { channel -> appState.playChannelFullScreen(channel, favoriteChannels) },
+                isSingleColumn = isSingleColumn
             )
         }
         entry<XuperNavKey.Arena> { _ ->
@@ -337,7 +383,9 @@ fun XuperApp() {
             }
             ZicoTvScreen(
                 viewModel = zicoTvViewModel,
-                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) }
+                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) },
+                onPlayZicoChannel = { tokenInfo -> appState.playZicoChannelFullScreen(tokenInfo) },
+                isSingleColumn = isSingleColumn
             )
         }
         entry<XuperNavKey.Ak47Sports> { _ ->
@@ -346,7 +394,8 @@ fun XuperApp() {
             }
             Ak47SportsScreen(
                 viewModel = ak47SportsViewModel,
-                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) }
+                onPlayFullScreen = { url -> appState.playUrlFullScreen(url) },
+                isSingleColumn = isSingleColumn
             )
         }
         entry<XuperNavKey.Lists> { _ ->
@@ -364,6 +413,10 @@ fun XuperApp() {
     }
 
     val isPlayerActive = appState.fullScreenUrl != null
+
+    SideEffect {
+        (context as? MainActivity)?.isPlaybackActiveForPip = isPlayerActive || appState.selectedChannel != null
+    }
 
     var lastBackTime by remember { mutableLongStateOf(0L) }
     BackHandler(enabled = !isPlayerActive && appState.navigator.state.topLevelRoute == XuperNavKey.Tv) {
@@ -391,33 +444,55 @@ fun XuperApp() {
     }
 
     if (isPlayerActive && appState.fullScreenUrl != null) {
+        val canZap = appState.activeChannelList.size > 1
+        val zicoInfo = appState.activeZicoTokenInfo
+        val refreshBeforeExpiryMs = zicoInfo?.let { ((it.ttlSeconds - 900L).coerceAtLeast(60L)) * 1000L }
         FullScreenPlayer(
             url = appState.fullScreenUrl!!,
+            channelTitle = appState.selectedChannel?.name ?: zicoInfo?.channelName,
+            onPreviousChannel = if (canZap) ({ appState.playAdjacentChannel(-1) }) else null,
+            onNextChannel = if (canZap) ({ appState.playAdjacentChannel(1) }) else null,
+            onRefreshStreamUrl = zicoInfo?.let { info ->
+                suspend {
+                    val refreshed = zicoTvViewModel.getStreamToken(info.channelId, forceRefresh = true)
+                    appState.playZicoChannelFullScreen(refreshed)
+                    refreshed.streamUrl
+                }
+            },
+            autoRefreshBeforeExpiryMs = refreshBeforeExpiryMs,
             onClose = { appState.closeFullScreen() }
         )
     } else if (layoutConfig.isCompact) {
-        // Modo Móvil: Navegación en la barra inferior (NavigationBar)
+        // Modo Móvil: Barra inferior limpia de 5 ítems + menú "Más"
+        var showMoreSheet by remember { mutableStateOf(false) }
+        val currentRoute = appState.navigator.state.topLevelRoute
+        val moreRoutes = setOf(XuperNavKey.Ak47Sports, XuperNavKey.Lists, XuperNavKey.Config)
+
         Scaffold(
             bottomBar = {
                 NavigationBar {
-                    val navItems = listOf(
+                    val primaryItems = listOf(
                         Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
                         Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
                         Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
-                        Triple(XuperNavKey.ZicoTv, Icons.Default.VpnKey, "ZicoTV"),
-                        Triple(XuperNavKey.Ak47Sports, Icons.Default.SportsSoccer, "AK47Sports"),
-                        Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
-                        Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
+                        Triple(XuperNavKey.ZicoTv, Icons.Default.VpnKey, "ZicoTV")
                     )
 
-                    navItems.forEach { (route, icon, label) ->
+                    primaryItems.forEach { (route, icon, label) ->
                         NavigationBarItem(
-                            selected = appState.navigator.state.topLevelRoute == route,
+                            selected = currentRoute == route,
                             onClick = { appState.navigator.navigate(route) },
                             icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) }
+                            label = { Text(label, maxLines = 1, softWrap = false) }
                         )
                     }
+
+                    NavigationBarItem(
+                        selected = currentRoute in moreRoutes,
+                        onClick = { showMoreSheet = true },
+                        icon = { Icon(Icons.Default.Menu, contentDescription = "Más") },
+                        label = { Text("Más", maxLines = 1, softWrap = false) }
+                    )
                 }
             }
         ) { innerPadding ->
@@ -432,9 +507,66 @@ fun XuperApp() {
                 )
             }
         }
+
+        if (showMoreSheet) {
+            ModalBottomSheet(onDismissRequest = { showMoreSheet = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val moreItems = listOf(
+                        Triple(XuperNavKey.Ak47Sports, Icons.Default.SportsSoccer, "AK47Sports"),
+                        Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
+                        Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
+                    )
+                    moreItems.forEach { (route, icon, label) ->
+                        val isSelected = currentRoute == route
+                        Surface(
+                            onClick = {
+                                showMoreSheet = false
+                                appState.navigator.navigate(route)
+                            },
+                            shape = MaterialTheme.shapes.medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = label,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     } else {
-        // Modo Android TV / Tablet / Landscape: Panel Lateral Completo a la Izquierda
-        Row(modifier = Modifier.fillMaxSize()) {
+        // Modo Android TV / Tablet / Landscape: hueco fijo de 72dp + panel lateral superpuesto al expandir
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 72.dp)
+            ) {
+                NavDisplay(
+                    entries = appState.navigator.state.toEntries(@Suppress("UNCHECKED_CAST") (entryProvider as (NavKey) -> NavEntry<NavKey>)),
+                    onBack = { appState.navigator.goBack() }
+                )
+            }
             TvSidePanel(
                 currentRoute = appState.navigator.state.topLevelRoute,
                 onNavigate = { appState.navigator.navigate(it) },
@@ -443,15 +575,10 @@ fun XuperApp() {
                 onToggleView = { isSingleColumn = !isSingleColumn },
                 searchQuery = searchQuery.orEmpty(),
                 onSearchChange = { appState.setSearchQuery(it) },
+                modifier = Modifier.align(Alignment.CenterStart),
                 availableUpdate = appState.availableUpdate,
                 onOpenUpdateDialog = { appState.showUpdateDialog = true }
             )
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                NavDisplay(
-                    entries = appState.navigator.state.toEntries(@Suppress("UNCHECKED_CAST") (entryProvider as (NavKey) -> NavEntry<NavKey>)),
-                    onBack = { appState.navigator.goBack() }
-                )
-            }
         }
     }
 
@@ -489,13 +616,14 @@ fun TvSidePanel(
     onToggleView: () -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
     availableUpdate: com.example.xuper.util.AppUpdateInfo? = null,
-    onOpenUpdateDialog: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onOpenUpdateDialog: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var isPanelFocused by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
+    val searchFieldFocusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
 
     val isExpanded = isPanelFocused || isSearchExpanded || searchQuery.isNotEmpty()
@@ -505,13 +633,23 @@ fun TvSidePanel(
         label = "panelWidth"
     )
 
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) {
+            kotlinx.coroutines.delay(50)
+            try {
+                searchFieldFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
     Surface(
         modifier = modifier
             .fillMaxHeight()
             .width(panelWidth)
             .onFocusChanged { isPanelFocused = it.hasFocus },
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-        tonalElevation = 6.dp
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isExpanded) 0.96f else 0.85f),
+        tonalElevation = 6.dp,
+        shadowElevation = if (isExpanded) 12.dp else 0.dp
     ) {
         Column(
             modifier = Modifier
@@ -731,6 +869,7 @@ fun TvSidePanel(
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(searchFieldFocusRequester)
                         .onFocusChanged {
                             isSearchFieldFocused = it.isFocused
                             if (it.hasFocus) isPanelFocused = true
@@ -757,6 +896,7 @@ fun TvSidePanel(
                     contentColor = if (isSearchBtnFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(searchFieldFocusRequester)
                         .onFocusChanged {
                             isSearchBtnFocused = it.isFocused
                             if (it.hasFocus) isPanelFocused = true
@@ -804,166 +944,6 @@ fun TvSidePanel(
 }
 
 @Composable
-fun SideNavigationRail(
-    currentRoute: NavKey,
-    onNavigate: (NavKey) -> Unit,
-    onRefresh: () -> Unit,
-    isSingleColumn: Boolean,
-    onToggleView: () -> Unit,
-    searchQuery: String,
-    onSearchChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var isSearchExpanded by remember { mutableStateOf(false) }
-
-    NavigationRail(
-        modifier = modifier.fillMaxHeight(),
-        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        contentColor = MaterialTheme.colorScheme.onSurface
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
-
-        val navItems = listOf(
-            Triple(XuperNavKey.Tv, Icons.Default.Tv, stringResourceAI("tv")),
-            Triple(XuperNavKey.Favorites, Icons.Default.Favorite, stringResourceAI("favorites")),
-            Triple(XuperNavKey.Arena, Icons.Default.SportsSoccer, "Arena"),
-            Triple(XuperNavKey.ZicoTv, Icons.Default.VpnKey, "ZicoTV"),
-            Triple(XuperNavKey.Ak47Sports, Icons.Default.SportsSoccer, "AK47Sports"),
-            Triple(XuperNavKey.Lists, Icons.AutoMirrored.Filled.List, stringResourceAI("lists")),
-            Triple(XuperNavKey.Config, Icons.Default.Settings, stringResourceAI("settings"))
-        )
-
-        navItems.forEach { (route, icon, label) ->
-            var isFocused by remember { mutableStateOf(false) }
-            val scale by animateFloatAsState(if (isFocused) 1.15f else 1f, label = "railFocus")
-            NavigationRailItem(
-                selected = currentRoute == route,
-                onClick = { onNavigate(route) },
-                icon = { Icon(icon, contentDescription = label) },
-                label = { Text(label) },
-                modifier = Modifier
-                    .onFocusChanged { isFocused = it.isFocused }
-                    .scale(scale)
-                    .border(
-                        width = if (isFocused) 2.dp else 0.dp,
-                        color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                        shape = MaterialTheme.shapes.small
-                    )
-            )
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp, horizontal = 12.dp))
-
-        var isRefreshFocused by remember { mutableStateOf(false) }
-        val refreshScale by animateFloatAsState(if (isRefreshFocused) 1.15f else 1f, label = "refreshFocus")
-        NavigationRailItem(
-            selected = false,
-            onClick = onRefresh,
-            icon = { Icon(Icons.Default.Refresh, contentDescription = "Refrescar") },
-            label = { Text(stringResourceAI("refresh")) },
-            modifier = Modifier
-                .onFocusChanged { isRefreshFocused = it.isFocused }
-                .scale(refreshScale)
-                .border(
-                    width = if (isRefreshFocused) 2.dp else 0.dp,
-                    color = if (isRefreshFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                    shape = MaterialTheme.shapes.small
-                )
-        )
-
-        var isViewFocused by remember { mutableStateOf(false) }
-        val viewScale by animateFloatAsState(if (isViewFocused) 1.15f else 1f, label = "viewFocus")
-        NavigationRailItem(
-            selected = false,
-            onClick = onToggleView,
-            icon = {
-                Icon(
-                    imageVector = if (isSingleColumn) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
-                    contentDescription = "Cambiar vista"
-                )
-            },
-            label = { Text(if (isSingleColumn) "Cuadrícula" else "Lista") },
-            modifier = Modifier
-                .onFocusChanged { isViewFocused = it.isFocused }
-                .scale(viewScale)
-                .border(
-                    width = if (isViewFocused) 2.dp else 0.dp,
-                    color = if (isViewFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                    shape = MaterialTheme.shapes.small
-                )
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Box(
-            modifier = Modifier
-                .padding(bottom = 12.dp, start = 4.dp, end = 4.dp)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isSearchExpanded || searchQuery.isNotEmpty()) {
-                var isSearchFieldFocused by remember { mutableStateOf(false) }
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = {
-                        onSearchChange(it)
-                        if (currentRoute != XuperNavKey.Tv) {
-                            onNavigate(XuperNavKey.Tv)
-                        }
-                    },
-                    placeholder = { Text(stringResourceAI("search"), style = MaterialTheme.typography.bodySmall) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Buscar",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                onSearchChange("")
-                                isSearchExpanded = false
-                            },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Cerrar búsqueda", modifier = Modifier.size(16.dp))
-                        }
-                    },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier
-                        .width(160.dp)
-                        .onFocusChanged { isSearchFieldFocused = it.isFocused }
-                        .border(
-                            width = if (isSearchFieldFocused) 2.dp else 0.dp,
-                            color = if (isSearchFieldFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                            shape = MaterialTheme.shapes.small
-                        )
-                )
-            } else {
-                var isSearchIconFocused by remember { mutableStateOf(false) }
-                val searchIconScale by animateFloatAsState(if (isSearchIconFocused) 1.15f else 1f, label = "searchFocus")
-                NavigationRailItem(
-                    selected = false,
-                    onClick = { isSearchExpanded = true },
-                    icon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-                    label = { Text(stringResourceAI("search")) },
-                    modifier = Modifier
-                        .onFocusChanged { isSearchIconFocused = it.isFocused }
-                        .scale(searchIconScale)
-                        .border(
-                            width = if (isSearchIconFocused) 2.dp else 0.dp,
-                            color = if (isSearchIconFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                            shape = MaterialTheme.shapes.small
-                        )
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun LanguageSelectionDialog(onDismiss: () -> Unit, onLanguageSelected: (AppLanguage) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -987,16 +967,48 @@ fun LanguageSelectionDialog(onDismiss: () -> Unit, onLanguageSelected: (AppLangu
 }
 
 @Composable
-fun FullScreenPlayer(url: String, onClose: () -> Unit) {
+fun FullScreenPlayer(
+    url: String,
+    channelTitle: String? = null,
+    onPreviousChannel: (() -> Unit)? = null,
+    onNextChannel: (() -> Unit)? = null,
+    onRefreshStreamUrl: (suspend () -> String?)? = null,
+    autoRefreshBeforeExpiryMs: Long? = null,
+    onClose: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    when (event.nativeKeyEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_CHANNEL_UP,
+                        android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                            onNextChannel?.invoke()
+                            onNextChannel != null
+                        }
+                        android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
+                        android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                            onPreviousChannel?.invoke()
+                            onPreviousChannel != null
+                        }
+                        else -> false
+                    }
+                } else {
+                    false
+                }
+            }
     ) {
         UniversalPlayer(
             url = url,
             modifier = Modifier.fillMaxSize(),
-            onFullScreen = onClose,
+            channelTitle = channelTitle,
+            onPreviousChannel = onPreviousChannel,
+            onNextChannel = onNextChannel,
+            onRefreshStreamUrl = onRefreshStreamUrl,
+            autoRefreshBeforeExpiryMs = autoRefreshBeforeExpiryMs,
+            onFullScreen = null,
             registerBackHandler = true,
             onCloseFullScreen = onClose
         )

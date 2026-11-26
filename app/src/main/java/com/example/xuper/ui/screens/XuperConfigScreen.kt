@@ -1,6 +1,9 @@
 package com.example.xuper.ui.screens
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
@@ -11,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,24 +33,27 @@ fun XuperConfigScreen() {
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             contentColor = MaterialTheme.colorScheme.primary
         ) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Proxies AceStream") },
-                icon = { Icon(Icons.Default.Router, contentDescription = null) }
+            val tabs = listOf(
+                Triple(0, "Proxies AceStream", Icons.Default.Router),
+                Triple(1, "Servidor API Xuper", Icons.Default.Dns),
+                Triple(2, "Actualización y Repo", Icons.Default.Info)
             )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Servidor API Xuper") },
-                icon = { Icon(Icons.Default.Dns, contentDescription = null) }
-            )
-            Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
-                text = { Text("Actualización y Repo") },
-                icon = { Icon(Icons.Default.Info, contentDescription = null) }
-            )
+            tabs.forEach { (index, title, icon) ->
+                var isTabFocused by remember { mutableStateOf(false) }
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title) },
+                    icon = { Icon(icon, contentDescription = null) },
+                    modifier = Modifier
+                        .onFocusChanged { isTabFocused = it.isFocused }
+                        .border(
+                            width = if (isTabFocused) 2.dp else 0.dp,
+                            color = if (isTabFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                            shape = MaterialTheme.shapes.small
+                        )
+                )
+            }
         }
 
         when (selectedTab) {
@@ -69,6 +77,7 @@ private fun ApiConfigSection() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -101,12 +110,24 @@ private fun ApiConfigSection() {
         )
         Spacer(modifier = Modifier.height(24.dp))
 
+        var isSaveFocused by remember { mutableStateOf(false) }
         Button(
             onClick = {
                 XuperConfigHelper.guardarAjustes(context, apiUrl, user, passwordState.text.toString())
                 showSavedMessage = true
             },
-            modifier = Modifier.fillMaxWidth(0.5f)
+            modifier = Modifier
+                .fillMaxWidth(0.5f)
+                .onFocusChanged { isSaveFocused = it.isFocused }
+                .border(
+                    width = if (isSaveFocused) 3.dp else 0.dp,
+                    color = if (isSaveFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                    shape = ButtonDefaults.shape
+                ),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isSaveFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
+                contentColor = if (isSaveFocused) Color.Black else Color.White
+            )
         ) {
             Text("Guardar Configuración")
         }
@@ -131,6 +152,7 @@ private fun AboutAndUpdateSection() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -144,6 +166,7 @@ private fun AboutAndUpdateSection() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        var isCheckFocused by remember { mutableStateOf(false) }
         Button(
             onClick = {
                 scope.launch {
@@ -160,7 +183,18 @@ private fun AboutAndUpdateSection() {
                 }
             },
             enabled = !isChecking,
-            modifier = Modifier.fillMaxWidth(0.6f)
+            modifier = Modifier
+                .fillMaxWidth(0.6f)
+                .onFocusChanged { isCheckFocused = it.isFocused }
+                .border(
+                    width = if (isCheckFocused) 3.dp else 0.dp,
+                    color = if (isCheckFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
+                    shape = ButtonDefaults.shape
+                ),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isCheckFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
+                contentColor = if (isCheckFocused) Color.Black else Color.White
+            )
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (isChecking) {

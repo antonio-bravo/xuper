@@ -41,6 +41,7 @@ import com.example.xuper.util.PlayerUtils
 @Composable
 fun MainTvScreen(
     channels: List<Channel>,
+    availableCategories: List<String>,
     selectedChannel: Channel?,
     isLoading: Boolean,
     searchQuery: String,
@@ -64,31 +65,15 @@ fun MainTvScreen(
     val context = LocalContext.current
     val layoutConfig = rememberAdaptiveLayoutConfig()
 
-    Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (selectedChannel != null) {
             ResponsivePlayer(
                 url = selectedChannel.url,
                 onFullScreen = onFullScreen,
                 onClose = { onChannelSelected(null) }
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(layoutConfig.playerHeight)
-                    .background(MaterialTheme.colorScheme.surfaceDim)
-                    .padding(layoutConfig.contentPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isLoading) {
-                    LoadingIndicator(message = stringResourceAI("loading"))
-                } else {
-                    EmptyState(
-                        message = stringResourceAI("select_channel_msg"),
-                        icon = Icons.Default.Tv
-                    )
-                }
-            }
+        } else if (isLoading && channels.isNotEmpty()) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
         // Banner de Actualización Disponible (si existe una nueva versión)
@@ -140,8 +125,10 @@ fun MainTvScreen(
         }
 
         // Filtro de Listas (Solo las activas/enabled)
-        val listSources = remember(m3uLists) {
-            listOf(LanguageManager.getString("all_lists")) + m3uLists.filter { it.enabled }.map { it.name }
+        val allListsLabel = stringResourceAI("all_lists")
+        val listSources = remember(m3uLists, allListsLabel) {
+            listOf(com.example.xuper.data.ChannelRepository.ALL_LISTS to allListsLabel) +
+                m3uLists.filter { it.enabled }.map { it.name to it.name }
         }
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -167,14 +154,14 @@ fun MainTvScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(listSources.size) { index ->
-                    val name = listSources[index]
+                items(listSources.size, key = { listSources[it].first }) { index ->
+                    val (listKey, listLabel) = listSources[index]
                     var isFocused by remember { mutableStateOf(value = false) }
                     val chipScale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "chipScale")
                     FilterChip(
-                        selected = selectedListName == name,
-                        onClick = { onListNameChange(name) },
-                        label = { Text(name) },
+                        selected = selectedListName == listKey,
+                        onClick = { onListNameChange(listKey) },
+                        label = { Text(listLabel) },
                         modifier = Modifier
                             .padding(end = 4.dp)
                             .then(if (index == 0) Modifier.focusRequester(filterFocusRequester) else Modifier)
@@ -197,20 +184,20 @@ fun MainTvScreen(
         }
 
         // Filtro de Categorías
-        val categories = remember(channels, selectedListName) {
-            val allListsLabel = LanguageManager.getString("all_lists")
-            val base = if (selectedListName == allListsLabel) channels else channels.filter { it.sourceListName == selectedListName }
-            listOf(LanguageManager.getString("all_categories")) + base.asSequence().map { it.category }.distinct().sorted().toList()
+        val allCategoriesLabel = stringResourceAI("all_categories")
+        val categories = remember(availableCategories, allCategoriesLabel) {
+            listOf(com.example.xuper.data.ChannelRepository.ALL_CATEGORIES to allCategoriesLabel) +
+                availableCategories.map { it to it }
         }
         LazyRow(modifier = Modifier.padding(horizontal = 8.dp)) {
-            items(categories.size) { index ->
-                val category = categories[index]
+            items(categories.size, key = { categories[it].first }) { index ->
+                val (categoryKey, categoryLabel) = categories[index]
                 var isFocused by remember { mutableStateOf(value = false) }
                 val catScale by animateFloatAsState(if (isFocused) 1.1f else 1f, label = "catScale")
                 FilterChip(
-                    selected = selectedCategory == category,
-                    onClick = { onCategoryChange(category) },
-                    label = { Text(category) },
+                    selected = selectedCategory == categoryKey,
+                    onClick = { onCategoryChange(categoryKey) },
+                    label = { Text(categoryLabel) },
                     modifier = Modifier
                         .padding(end = 4.dp)
                         .onFocusChanged { isFocused = it.isFocused }
@@ -230,22 +217,12 @@ fun MainTvScreen(
             }
         }
 
-        val filteredChannels = remember(channels, searchQuery, selectedCategory, selectedListName) {
-            val allListsLabel = LanguageManager.getString("all_lists")
-            val allCategoriesLabel = LanguageManager.getString("all_categories")
-            channels.filter {
-                ((selectedListName == allListsLabel || it.sourceListName == selectedListName) &&
-                        (selectedCategory == allCategoriesLabel || it.category == selectedCategory) &&
-                        it.name.contains(searchQuery, ignoreCase = true))
-            }.distinctBy { it.url + it.name + it.category }
-        }
-
         ChannelList(
-            channels = filteredChannels,
+            channels = channels,
             onChannelSelected = { showPlayerDialog = it },
             onToggleFavorite = onToggleFavorite,
             isSingleColumn = isSingleColumn,
-            isLoading = isLoading && filteredChannels.isEmpty(),
+            isLoading = isLoading && channels.isEmpty(),
             modifier = Modifier.weight(1f)
         )
 
@@ -277,239 +254,16 @@ fun MainTvScreen(
     }
 
     showPlayerDialog?.let { channel ->
-        val isAcestream = remember(channel.url) { PlayerUtils.isAceStreamUrl(channel.url) }
-        val aceManager = remember { com.example.xuper.data.AceStreamManager(context) }
-        val proxies = remember { aceManager.getProxies() }
-
-        AlertDialog(
-            onDismissRequest = { showPlayerDialog = null },
-            title = { Text(channel.name, style = MaterialTheme.typography.headlineSmall) },
-            text = {
-                Column {
-                    Text(stringResourceAI("select_player"), style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(8.dp))
-                    if (channel.category != "Otros") {
-                        Text(
-                            "${stringResourceAI("category")}: ${channel.category}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (isAcestream) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                                    shape = MaterialTheme.shapes.small
-                                )
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Canal Acestream P2P",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
+        com.example.xuper.ui.components.ChannelPlaybackDialog(
+            title = channel.name,
+            url = channel.url,
+            subtitle = if (channel.category != "Otros") "${stringResourceAI("category")}: ${channel.category}" else null,
+            isFavorite = channel.isFavorite,
+            onToggleFavorite = { onToggleFavorite(channel) },
+            onPlayInternal = { formattedUrl ->
+                onChannelSelected(channel.copy(url = formattedUrl))
             },
-            containerColor = MaterialTheme.colorScheme.surface,
-            confirmButton = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (isAcestream) {
-                        Text(
-                            "Reproducción Interna (Proxy AceStream):",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-
-                        proxies.forEach { proxy ->
-                            var isProxyFocused by remember { mutableStateOf(false) }
-                            val proxyScale by animateFloatAsState(if (isProxyFocused) 1.03f else 1f, label = "proxyScale")
-
-                            Button(
-                                onClick = {
-                                    aceManager.setSelectedProxy(proxy)
-                                    val formattedUrl = aceManager.getFormattedUrlForProxy(channel.url, proxy)
-                                    onChannelSelected(channel.copy(url = formattedUrl))
-                                    showPlayerDialog = null
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .onFocusChanged { isProxyFocused = it.isFocused }
-                                    .scale(proxyScale)
-                                    .border(
-                                        width = if (isProxyFocused) 3.dp else 0.dp,
-                                        color = if (isProxyFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                        shape = ButtonDefaults.shape
-                                    ),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isProxyFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
-                                    contentColor = if (isProxyFocused) Color.Black else Color.White
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(if (proxy.isVpn) "🔒" else "🌐")
-                                        Column(horizontalAlignment = Alignment.Start) {
-                                            Text(proxy.name, style = MaterialTheme.typography.titleMedium)
-                                            Text(
-                                                "${proxy.host}:${proxy.port}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (isProxyFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
-                                            )
-                                        }
-                                    }
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                                }
-                            }
-                        }
-                    } else {
-                        // Reproductor Interno Estándar
-                        var isIntFocused by remember { mutableStateOf(false) }
-                        val intScale by animateFloatAsState(if (isIntFocused) 1.05f else 1f, label = "intScale")
-                        Button(
-                            onClick = {
-                                onChannelSelected(channel)
-                                showPlayerDialog = null
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { isIntFocused = it.isFocused }
-                                .scale(intScale)
-                                .border(
-                                    width = if (isIntFocused) 3.dp else 0.dp,
-                                    color = if (isIntFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                    shape = ButtonDefaults.shape,
-                                ),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isIntFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primary,
-                                contentColor = if (isIntFocused) Color.Black else Color.White,
-                            ),
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Column(horizontalAlignment = Alignment.Start) {
-                                Text(stringResourceAI("internal_player"), style = MaterialTheme.typography.titleMedium)
-                            }
-                        }
-                    }
-
-                    // Botón: Reproductor Externo
-                    var isExtFocused by remember { mutableStateOf(false) }
-                    val extScale by animateFloatAsState(if (isExtFocused) 1.05f else 1f, label = "extScale")
-                    Button(
-                        onClick = {
-                            val rawUrl = channel.url.trim()
-                            val aceId = PlayerUtils.getAceId(rawUrl)
-
-                            if (aceId.isNotEmpty()) {
-                                val currentProxy = aceManager.getSelectedProxy()
-                                val streamUrl = currentProxy.getStreamUrl(aceId)
-                                PlayerUtils.openInAceStreamApp(context, streamUrl)
-                            } else {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(rawUrl.toUri(), "video/*")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                try {
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    Intent.createChooser(intent, "Open with...").apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        context.startActivity(this)
-                                    }
-                                }
-                            }
-                            showPlayerDialog = null
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isExtFocused = it.isFocused }
-                            .scale(extScale)
-                            .border(
-                                width = if (isExtFocused) 3.dp else 0.dp,
-                                color = if (isExtFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = ButtonDefaults.shape,
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isExtFocused) com.example.xuper.ui.theme.FocusBackground else MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = if (isExtFocused) Color.Black else Color.White,
-                        ),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column(horizontalAlignment = Alignment.Start) {
-                            Text(stringResourceAI("external_player"), style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Abrir en app externa (AceStream)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isExtFocused) Color.DarkGray else Color.White.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    // Botón: Favorito
-                    var isFavFocused by remember { mutableStateOf(false) }
-                    val favScale by animateFloatAsState(if (isFavFocused) 1.05f else 1f, label = "favScale")
-                    OutlinedButton(
-                        onClick = {
-                            onToggleFavorite(channel)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { isFavFocused = it.isFocused }
-                            .scale(favScale)
-                            .border(
-                                width = if (isFavFocused) 3.dp else 0.dp,
-                                color = if (isFavFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
-                                shape = ButtonDefaults.shape,
-                            ),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isFavFocused) com.example.xuper.ui.theme.FocusBackground else Color.Transparent,
-                            contentColor = if (isFavFocused) Color.Black else MaterialTheme.colorScheme.onSurface,
-                        ),
-                    ) {
-                        Icon(
-                            if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (channel.isFavorite) Color.Red else if (isFavFocused) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (channel.isFavorite) stringResourceAI("remove_favorite") else stringResourceAI("add_favorite"))
-                    }
-                }
-            },
-            dismissButton = {
-                var isCancelFocused by remember { mutableStateOf(false) }
-                TextButton(
-                    onClick = { showPlayerDialog = null },
-                    modifier = Modifier.onFocusChanged { isCancelFocused = it.isFocused }
-                ) {
-                    Text(
-                        stringResourceAI("cancel"),
-                        color = if (isCancelFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
+            onDismiss = { showPlayerDialog = null }
         )
     }
 }

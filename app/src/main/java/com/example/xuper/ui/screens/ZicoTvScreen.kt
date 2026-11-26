@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 fun ZicoTvScreen(
     viewModel: ZicoTvViewModel = viewModel(),
     onPlayFullScreen: ((String) -> Unit)? = null,
+    onPlayZicoChannel: ((ZicoTvTokenInfo) -> Unit)? = null,
     isSingleColumn: Boolean = true
 ) {
     val context = LocalContext.current
@@ -148,11 +149,7 @@ fun ZicoTvScreen(
         Spacer(Modifier.height(8.dp))
 
         // Barra de Búsqueda y Filtros
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        val searchBox: @Composable (Modifier) -> Unit = { boxMod ->
             var isSearchFocused by remember { mutableStateOf(false) }
             val searchScale by animateFloatAsState(if (isSearchFocused) 1.02f else 1f, label = "searchScale")
 
@@ -170,9 +167,7 @@ fun ZicoTvScreen(
                 },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier
-                    .widthIn(max = 320.dp)
-                    .weight(1f, fill = false)
+                modifier = boxMod
                     .onFocusChanged { isSearchFocused = it.isFocused }
                     .scale(searchScale)
                     .border(
@@ -181,11 +176,11 @@ fun ZicoTvScreen(
                         shape = MaterialTheme.shapes.small
                     )
             )
+        }
 
-            // Categorías horizontal scroll
+        val categoryRow: @Composable (Modifier) -> Unit = { rowMod ->
             Row(
-                modifier = Modifier
-                    .weight(1f)
+                modifier = rowMod
                     .horizontalScroll(rememberScrollState())
                     .selectableGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -201,7 +196,6 @@ fun ZicoTvScreen(
                         modifier = Modifier
                             .onFocusChanged { isFocused = it.isFocused }
                             .scale(scale)
-                            .focusable()
                             .border(
                                 width = if (isFocused) 3.dp else 0.dp,
                                 color = if (isFocused) com.example.xuper.ui.theme.FocusBorder else Color.Transparent,
@@ -218,6 +212,25 @@ fun ZicoTvScreen(
                         )
                     }
                 }
+            }
+        }
+
+        if (layoutConfig.isCompact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                searchBox(Modifier.fillMaxWidth())
+                categoryRow(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                searchBox(Modifier.widthIn(max = 320.dp).weight(1f, fill = false))
+                categoryRow(Modifier.weight(1f))
             }
         }
 
@@ -313,10 +326,13 @@ fun ZicoTvScreen(
                         val intScale by animateFloatAsState(if (isIntFocused) 1.03f else 1f, label = "intScale")
                         Button(
                             onClick = {
-                                val urlToPlay = info.streamUrl
                                 selectedChannelForToken = null
                                 generatedTokenInfo = null
-                                onPlayFullScreen?.invoke(urlToPlay)
+                                if (onPlayZicoChannel != null) {
+                                    onPlayZicoChannel(info)
+                                } else {
+                                    onPlayFullScreen?.invoke(info.streamUrl)
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -423,7 +439,6 @@ fun ZicoTvChannelCard(
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
             .scale(scale)
-            .focusable()
             .clickable { onClick() }
             .border(
                 width = if (isFocused) 3.dp else 0.dp,

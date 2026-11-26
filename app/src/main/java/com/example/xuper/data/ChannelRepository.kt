@@ -6,6 +6,11 @@ import kotlinx.coroutines.flow.map
 
 class ChannelRepository(private val channelDao: ChannelDao) {
 
+    companion object {
+        const val ALL_LISTS = "__ALL_LISTS__"
+        const val ALL_CATEGORIES = "__ALL_CATEGORIES__"
+    }
+
     val allChannels: Flow<List<Channel>> = channelDao.getAllChannels().map { entities ->
         entities.map { it.toModel() }
     }
@@ -15,8 +20,7 @@ class ChannelRepository(private val channelDao: ChannelDao) {
     }
 
     suspend fun refreshChannels(channels: List<Channel>, sourceName: String) {
-        channelDao.deleteChannelsBySource(sourceName)
-        channelDao.insertChannels(channels.map { it.toEntity(sourceName) })
+        channelDao.replaceChannelsForSource(sourceName, channels.map { it.toEntity(sourceName) })
     }
 
     suspend fun clearChannelsBySource(sourceName: String) {
@@ -32,7 +36,15 @@ class ChannelRepository(private val channelDao: ChannelDao) {
     }
 
     fun getFilteredChannels(query: String, category: String, sourceName: String): Flow<List<Channel>> {
-        return channelDao.getFilteredChannels(query, category, sourceName).map { entities ->
+        val allLists = sourceName == ALL_LISTS
+        val allCategories = category == ALL_CATEGORIES
+        return channelDao.getFilteredChannels(
+            query = query,
+            category = category,
+            sourceName = sourceName,
+            allLists = allLists,
+            allCategories = allCategories
+        ).map { entities ->
             entities.map { it.toModel() }
         }
     }

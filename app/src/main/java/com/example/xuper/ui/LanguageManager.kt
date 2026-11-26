@@ -43,6 +43,8 @@ object LanguageManager {
             "select_channel_msg" to "Selecciona un canal para reproducir",
             "error_loading" to "Error al cargar canales",
             "retry" to "REINTENTAR",
+            "loading" to "Cargando canales...",
+            "category" to "Categoría",
         ),
         AppLanguage.EN to mapOf(
             "tv" to "TV",
@@ -66,6 +68,8 @@ object LanguageManager {
             "select_channel_msg" to "Select a channel to play",
             "error_loading" to "Error loading channels",
             "retry" to "RETRY",
+            "loading" to "Loading channels...",
+            "category" to "Category",
         ),
         AppLanguage.FR to mapOf(
             "tv" to "TV",
@@ -89,6 +93,8 @@ object LanguageManager {
             "select_channel_msg" to "Sélectionnez une chaîne à lire",
             "error_loading" to "Erreur lors du chargement des chaînes",
             "retry" to "RÉESSAYER",
+            "loading" to "Chargement des chaînes...",
+            "category" to "Catégorie",
         ),
         AppLanguage.DE to mapOf(
             "tv" to "TV",
@@ -112,6 +118,8 @@ object LanguageManager {
             "select_channel_msg" to "Wählen Sie einen Kanal zum Abspielen aus",
             "error_loading" to "Fehler beim Laden der Kanäle",
             "retry" to "WIEDERHOLEN",
+            "loading" to "Kanäle werden geladen...",
+            "category" to "Kategorie",
         ),
         AppLanguage.RU to mapOf(
             "tv" to "ТВ",
@@ -135,6 +143,8 @@ object LanguageManager {
             "select_channel_msg" to "Выберите канал для воспроизведения",
             "error_loading" to "Ошибка загрузки каналов",
             "retry" to "ПОВТОРИТЬ",
+            "loading" to "Загрузка каналов...",
+            "category" to "Категория",
         ),
     )
 

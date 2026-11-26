@@ -18,30 +18,11 @@ import androidx.media3.exoplayer.upstream.DefaultAllocator
  */
 object ExoPlayerFactory {
 
-    // Pool de ExoPlayer para reutilización
-    private var cachedPlayer: ExoPlayer? = null
-    private var lastContext: Context? = null
-
     /**
-     * Obtener o crear ExoPlayer optimizado
+     * Crear una instancia optimizada de ExoPlayer sin retener referencias estáticas de Context.
      */
-    fun getOrCreate(context: Context, reuseIfPossible: Boolean = true): ExoPlayer {
-        // Si no se permite reutilizar o el contexto cambió, liberar el player previo
-        if (!reuseIfPossible || (lastContext != null && lastContext != context.applicationContext)) {
-            releasePlayer()
-        }
-
-        // Reutilizar si está disponible y se permite
-        if (reuseIfPossible && cachedPlayer != null) {
-            return cachedPlayer!!
-        }
-
-        // Crear nuevo player optimizado
-        val player = createOptimizedPlayer(context)
-        cachedPlayer = player
-        lastContext = context.applicationContext
-
-        return player
+    fun createPlayer(context: Context): ExoPlayer {
+        return createOptimizedPlayer(context.applicationContext)
     }
 
     /**
@@ -49,12 +30,7 @@ object ExoPlayerFactory {
      */
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun createOptimizedPlayer(context: Context): ExoPlayer {
-        val defaultLang = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            context.resources.configuration.locales[0].language
-        } else {
-            @Suppress("DEPRECATION")
-            context.resources.configuration.locale.language
-        }
+        val defaultLang = context.resources.configuration.locales[0].language
 
         // Track Selector optimizado para streaming
         val trackSelector = DefaultTrackSelector(context).apply {
@@ -121,34 +97,6 @@ object ExoPlayerFactory {
             // Priorizar playback sobre buffering
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-    }
-
-    /**
-     * Liberar player y recursos
-     */
-    fun releasePlayer() {
-        cachedPlayer?.apply {
-            try {
-                stop()
-                clearMediaItems()
-                release()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        cachedPlayer = null
-        lastContext = null
-    }
-
-    /**
-     * Reset player (mantener instancia pero limpiar estado)
-     */
-    fun resetPlayer() {
-        cachedPlayer?.apply {
-            stop()
-            clearMediaItems()
-            seekTo(0)
-        }
     }
 }
 

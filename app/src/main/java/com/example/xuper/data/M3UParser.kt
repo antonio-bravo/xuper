@@ -1,29 +1,34 @@
 package com.example.xuper.data
 
 import com.example.xuper.model.Channel
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 import org.json.JSONObject
 
 object M3UParser {
-    private val client = OkHttpClient()
+    private val client get() = NetworkClient.defaultClient
+
+    private val NAME_REGEX = """tvg-name\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
+    private val LOGO_REGEX = """tvg-logo\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
+    private val GROUP_REGEX = """group-title\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
+    private val TVG_GROUP_REGEX = """tvg-group\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
 
     suspend fun fetchAndParse(url: String, listName: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext emptyList()
-            
-            val content = response.body.string().trim()
-            if (content.isEmpty()) return@withContext emptyList()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext emptyList()
 
-            // Detección robusta: si la URL contiene .json o el contenido parece JSON
-            return@withContext if (url.contains(".json", ignoreCase = true) || content.startsWith("{") || content.startsWith("[")) {
-                parseJson(content, listName)
-            } else {
-                parse(content, listName)
+                val content = response.body.string().trim()
+                if (content.isEmpty()) return@withContext emptyList()
+
+                // Detección robusta: si la URL contiene .json o el contenido parece JSON
+                return@withContext if (url.contains(".json", ignoreCase = true) || content.startsWith("{") || content.startsWith("[")) {
+                    parseJson(content, listName)
+                } else {
+                    parse(content, listName)
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -68,12 +73,11 @@ object M3UParser {
 
     fun parse(content: String, listName: String): List<Channel> {
         val channels = mutableListOf<Channel>()
-        val lines = content.lines()
         var currentName = ""
         var currentLogo = ""
         var currentCategory = "Otros"
 
-        for (line in lines) {
+        for (line in content.lineSequence()) {
             val trimmedLine = line.trim()
             if (trimmedLine.isEmpty()) continue
 
@@ -86,21 +90,17 @@ object M3UParser {
 
                 // Si el nombre sigue vacío o parece una etiqueta, buscamos tvg-name
                 if (currentName.isEmpty() || currentName.startsWith("#")) {
-                    val nameRegex = """tvg-name\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
-                    currentName = nameRegex.find(trimmedLine)?.groupValues?.get(1) ?: "Canal sin nombre"
+                    currentName = NAME_REGEX.find(trimmedLine)?.groupValues?.get(1) ?: "Canal sin nombre"
                 }
-                
+
                 // Extraer Logo
-                val logoRegex = """tvg-logo\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
-                currentLogo = logoRegex.find(trimmedLine)?.groupValues?.get(1) ?: ""
-                
+                currentLogo = LOGO_REGEX.find(trimmedLine)?.groupValues?.get(1) ?: ""
+
                 // Extraer Grupo (Categoría)
-                val groupRegex = """group-title\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
-                val tvgGroupRegex = """tvg-group\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
-                val rawCategory = groupRegex.find(trimmedLine)?.groupValues?.get(1) 
-                    ?: tvgGroupRegex.find(trimmedLine)?.groupValues?.get(1) 
+                val rawCategory = GROUP_REGEX.find(trimmedLine)?.groupValues?.get(1)
+                    ?: TVG_GROUP_REGEX.find(trimmedLine)?.groupValues?.get(1)
                     ?: "Otros"
-                
+
                 currentCategory = rawCategory.split(";").firstOrNull()?.trim()?.ifEmpty { "Otros" } ?: "Otros"
             } else if (trimmedLine.startsWith("#EXTGRP:")) {
                 currentCategory = trimmedLine.substringAfter(":").split(";").firstOrNull()?.trim() ?: "Otros"

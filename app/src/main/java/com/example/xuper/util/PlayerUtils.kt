@@ -2,8 +2,8 @@ package com.example.xuper.util
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
+import androidx.core.net.toUri
 
 object PlayerUtils {
     fun launchAceStream(context: Context, name: String, urlOrId: String) {
@@ -22,13 +22,13 @@ object PlayerUtils {
         val intentsToTry = listOf(
             // 1. Official URI with Mime Type (Standard)
             Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(Uri.parse("acestream://$cleanAceId"), "application/x-acestream")
+                setDataAndType("acestream://$cleanAceId".toUri(), "application/x-acestream")
                 setPackage("org.acestream.media")
                 putExtra("name", name)
             },
             // 2. Official URI without Mime Type
             Intent(Intent.ACTION_VIEW).apply {
-                data = Uri.parse("acestream://$cleanAceId")
+                data = "acestream://$cleanAceId".toUri()
                 setPackage("org.acestream.media")
                 putExtra("name", name)
                 putExtra("org.acestream.media.EXTRA_CONTENT_ID", cleanAceId)
@@ -45,7 +45,7 @@ object PlayerUtils {
                 putExtra("id", cleanAceId)
             },
             // 5. Generic system-wide URI
-            Intent(Intent.ACTION_VIEW, Uri.parse("acestream://$cleanAceId"))
+            Intent(Intent.ACTION_VIEW, "acestream://$cleanAceId".toUri())
         )
 
         var started = false
@@ -175,7 +175,7 @@ object PlayerUtils {
     fun openInAceStreamApp(context: Context, url: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(Uri.parse(url), "application/x-mpegurl")
+                setDataAndType(url.toUri(), "application/x-mpegurl")
                 setPackage("org.acestream.media")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -184,7 +184,7 @@ object PlayerUtils {
             try {
                 // Fallback sin paquete por si acaso
                 val genericIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(Uri.parse(url), "application/x-mpegurl")
+                    setDataAndType(url.toUri(), "application/x-mpegurl")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(genericIntent)
@@ -196,7 +196,7 @@ object PlayerUtils {
 
     private fun openAsGenericVideo(context: Context, url: String) {
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(Uri.parse(url), "video/*")
+            setDataAndType(url.toUri(), "video/*")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         try {

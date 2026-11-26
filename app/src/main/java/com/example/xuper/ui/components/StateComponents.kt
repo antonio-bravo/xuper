@@ -20,8 +20,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun EnhancedErrorState(
     message: String,
-    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onRetry: (() -> Unit)? = null,
     icon: ImageVector = Icons.Default.Error
 ) {
     Box(
@@ -73,10 +73,10 @@ fun EnhancedErrorState(
 @Composable
 fun EmptyState(
     message: String,
+    modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Default.Inbox,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onAction: (() -> Unit)? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -115,8 +115,8 @@ fun EmptyState(
  */
 @Composable
 fun LoadingIndicator(
-    message: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    message: String? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -148,8 +148,8 @@ fun LoadingIndicator(
 @Composable
 fun StatusBadge(
     text: String,
-    color: Color = MaterialTheme.colorScheme.primary,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary
 ) {
     Surface(
         modifier = modifier,
@@ -171,9 +171,9 @@ fun StatusBadge(
 @Composable
 fun ConnectionIndicator(
     isBuffering: Boolean,
+    modifier: Modifier = Modifier,
     isLive: Boolean = false,
-    peersCount: Int? = null,
-    modifier: Modifier = Modifier
+    peersCount: Int? = null
 ) {
     Row(
         modifier = modifier

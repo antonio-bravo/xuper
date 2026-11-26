@@ -1,9 +1,18 @@
 package com.example.xuper.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "channels")
+@Entity(
+    tableName = "channels",
+    indices = [
+        Index(value = ["sourceListName"]),
+        Index(value = ["category"]),
+        Index(value = ["isFavorite"]),
+        Index(value = ["url"])
+    ]
+)
 data class ChannelEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
